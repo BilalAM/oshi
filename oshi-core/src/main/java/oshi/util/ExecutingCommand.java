@@ -18,15 +18,15 @@
  */
 package oshi.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A class for executing on the command line and returning the result of
@@ -62,6 +62,8 @@ public class ExecutingCommand {
      *            Command to run and args, in an array
      * @return A list of Strings representing the result of the command, or
      *         empty string if the command failed
+     *
+     *         // have to test this for windows.
      */
     public static List<String> runNative(String[] cmdToRunWithArgs) {
         Process p = null;
