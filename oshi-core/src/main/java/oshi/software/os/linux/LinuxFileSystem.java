@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os.linux;
 
@@ -32,10 +37,12 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.sun.jna.Native; // NOSONAR
+import com.sun.jna.platform.linux.LibC;
+
 import oshi.software.os.FileSystem;
 import oshi.software.os.OSFileStore;
 import oshi.util.FileUtil;
-import oshi.util.MapUtil;
 import oshi.util.ParseUtil;
 
 /**
@@ -156,9 +163,7 @@ public class LinuxFileSystem implements FileSystem {
                 name = "/";
             }
             String volume = split[0].replaceAll("\\\\040", " ");
-            String uuid = MapUtil.getOrDefault(uuidMap, split[0], "");
-            long totalSpace = new File(path).getTotalSpace();
-            long usableSpace = new File(path).getUsableSpace();
+            String uuid = uuidMap.getOrDefault(split[0], "");
 
             String description;
             if (volume.startsWith("/dev")) {
@@ -188,12 +193,45 @@ public class LinuxFileSystem implements FileSystem {
                 }
             }
 
-            OSFileStore osStore = new OSFileStore(name, volume, path, description, type, uuid, usableSpace, totalSpace);
+            long totalInodes = 0L;
+            long freeInodes = 0L;
+            long totalSpace = 0L;
+            long usableSpace = 0L;
+
+            try {
+                LibC.Statvfs vfsStat = new LibC.Statvfs();
+                if (0 == LibC.INSTANCE.statvfs(path, vfsStat)) {
+                    totalInodes = vfsStat.f_files.longValue();
+                    freeInodes = vfsStat.f_ffree.longValue();
+                    totalSpace = vfsStat.f_blocks.longValue() * vfsStat.f_bsize.longValue();
+                    usableSpace = vfsStat.f_bfree.longValue() * vfsStat.f_bsize.longValue();
+                } else {
+                    File tmpFile = new File(path);
+                    totalSpace = tmpFile.getTotalSpace();
+                    usableSpace = tmpFile.getUsableSpace();
+                    LOG.error("Failed to get statvfs. Error code: {}", Native.getLastError());
+                }
+            } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
+                LOG.error("Failed to get file counts from statvfs. {}", e);
+            }
+
+            OSFileStore osStore = new OSFileStore();
+            osStore.setName(name);
+            osStore.setVolume(volume);
+            osStore.setMount(path);
+            osStore.setDescription(description);
+            osStore.setType(type);
+            osStore.setUUID(uuid);
+            osStore.setUsableSpace(usableSpace);
+            osStore.setTotalSpace(totalSpace);
+            osStore.setFreeInodes(freeInodes);
+            osStore.setTotalInodes(totalInodes);
             osStore.setLogicalVolume(logicalVolume);
+
             fsList.add(osStore);
         }
 
-        return fsList.toArray(new OSFileStore[fsList.size()]);
+        return fsList.toArray(new OSFileStore[0]);
     }
 
     @Override

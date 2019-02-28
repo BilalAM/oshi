@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware;
 
@@ -36,7 +41,7 @@ import oshi.hardware.platform.mac.MacNetworks;
 import oshi.hardware.platform.unix.freebsd.FreeBsdNetworks;
 import oshi.hardware.platform.unix.solaris.SolarisNetworks;
 import oshi.hardware.platform.windows.WindowsNetworks;
-import oshi.util.FormatUtil;
+import oshi.util.ParseUtil;
 
 /**
  * A network interface in the machine, including statistics
@@ -66,7 +71,7 @@ public class NetworkIF implements Serializable {
     /**
      * @return the network interface
      */
-    public NetworkInterface getNetworkInterface() {
+    public NetworkInterface queryNetworkInterface() {
         return this.networkInterface;
     }
 
@@ -89,7 +94,7 @@ public class NetworkIF implements Serializable {
                 for (byte b : hwmac) {
                     octets.add(String.format("%02x", b));
                 }
-                this.mac = FormatUtil.join(":", octets);
+                this.mac = String.join(":", octets);
             } else {
                 this.mac = "Unknown";
             }
@@ -105,8 +110,8 @@ public class NetworkIF implements Serializable {
                     }
                 }
             }
-            this.ipv4 = ipv4list.toArray(new String[ipv4list.size()]);
-            this.ipv6 = ipv6list.toArray(new String[ipv6list.size()]);
+            this.ipv4 = ipv4list.toArray(new String[0]);
+            this.ipv6 = ipv6list.toArray(new String[0]);
         } catch (SocketException e) {
             LOG.error("Socket exception: {}", e);
         }
@@ -167,7 +172,7 @@ public class NetworkIF implements Serializable {
     /**
      * @return The Bytes Received. This value is set when the {@link NetworkIF}
      *         is instantiated and may not be up to date. To update this value,
-     *         execute the {@link #updateNetworkStats()} method
+     *         execute the {@link #updateAttributes()} method
      */
     public long getBytesRecv() {
         return this.bytesRecv;
@@ -178,13 +183,13 @@ public class NetworkIF implements Serializable {
      *            Set Bytes Received
      */
     public void setBytesRecv(long bytesRecv) {
-        this.bytesRecv = bytesRecv & 0x7fffffffffffffffL;
+        this.bytesRecv = ParseUtil.unsignedLongToSignedLong(bytesRecv);
     }
 
     /**
      * @return The Bytes Sent. This value is set when the {@link NetworkIF} is
      *         instantiated and may not be up to date. To update this value,
-     *         execute the {@link #updateNetworkStats()} method
+     *         execute the {@link #updateAttributes()} method
      */
     public long getBytesSent() {
         return this.bytesSent;
@@ -195,13 +200,13 @@ public class NetworkIF implements Serializable {
      *            Set the Bytes Sent
      */
     public void setBytesSent(long bytesSent) {
-        this.bytesSent = bytesSent & 0x7fffffffffffffffL;
+        this.bytesSent = ParseUtil.unsignedLongToSignedLong(bytesSent);
     }
 
     /**
      * @return The Packets Received. This value is set when the
      *         {@link NetworkIF} is instantiated and may not be up to date. To
-     *         update this value, execute the {@link #updateNetworkStats()}
+     *         update this value, execute the {@link #updateAttributes()}
      *         method
      */
     public long getPacketsRecv() {
@@ -213,13 +218,13 @@ public class NetworkIF implements Serializable {
      *            Set The Packets Received
      */
     public void setPacketsRecv(long packetsRecv) {
-        this.packetsRecv = packetsRecv & 0x7fffffffffffffffL;
+        this.packetsRecv = ParseUtil.unsignedLongToSignedLong(packetsRecv);
     }
 
     /**
      * @return The Packets Sent. This value is set when the {@link NetworkIF} is
      *         instantiated and may not be up to date. To update this value,
-     *         execute the {@link #updateNetworkStats()} method
+     *         execute the {@link #updateAttributes()} method
      */
     public long getPacketsSent() {
         return this.packetsSent;
@@ -230,13 +235,13 @@ public class NetworkIF implements Serializable {
      *            Set The Packets Sent
      */
     public void setPacketsSent(long packetsSent) {
-        this.packetsSent = packetsSent & 0x7fffffffffffffffL;
+        this.packetsSent = ParseUtil.unsignedLongToSignedLong(packetsSent);
     }
 
     /**
      * @return Input Errors. This value is set when the {@link NetworkIF} is
      *         instantiated and may not be up to date. To update this value,
-     *         execute the {@link #updateNetworkStats()} method
+     *         execute the {@link #updateAttributes()} method
      */
     public long getInErrors() {
         return this.inErrors;
@@ -247,13 +252,13 @@ public class NetworkIF implements Serializable {
      *            The Input Errors to set.
      */
     public void setInErrors(long inErrors) {
-        this.inErrors = inErrors & 0x7fffffffffffffffL;
+        this.inErrors = ParseUtil.unsignedLongToSignedLong(inErrors);
     }
 
     /**
      * @return The Output Errors. This value is set when the {@link NetworkIF}
      *         is instantiated and may not be up to date. To update this value,
-     *         execute the {@link #updateNetworkStats()} method
+     *         execute the {@link #updateAttributes()} method
      */
     public long getOutErrors() {
         return this.outErrors;
@@ -264,14 +269,14 @@ public class NetworkIF implements Serializable {
      *            The Output Errors to set.
      */
     public void setOutErrors(long outErrors) {
-        this.outErrors = outErrors & 0x7fffffffffffffffL;
+        this.outErrors = ParseUtil.unsignedLongToSignedLong(outErrors);
     }
 
     /**
      * @return The speed of the network interface in bits per second. This value
      *         is set when the {@link NetworkIF} is instantiated and may not be
      *         up to date. To update this value, execute the
-     *         {@link #updateNetworkStats()} method
+     *         {@link #updateAttributes()} method
      */
     public long getSpeed() {
         return this.speed;
@@ -282,7 +287,7 @@ public class NetworkIF implements Serializable {
      *            Set the speed of the network interface
      */
     public void setSpeed(long speed) {
-        this.speed = speed & 0x7fffffffffffffffL;
+        this.speed = ParseUtil.unsignedLongToSignedLong(speed);
     }
 
     /**
@@ -304,7 +309,7 @@ public class NetworkIF implements Serializable {
      * Updates interface network statistics on this interface. Statistics
      * include packets and bytes sent and received, and interface speed.
      */
-    public void updateNetworkStats() {
+    public void updateAttributes() {
         switch (SystemInfo.getCurrentPlatformEnum()) {
         case WINDOWS:
             WindowsNetworks.updateNetworkStats(this);

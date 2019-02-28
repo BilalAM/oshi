@@ -1,27 +1,34 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os.unix.solaris;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.sun.jna.platform.unix.solaris.LibKstat.Kstat; // NOSONAR
 
@@ -91,6 +98,34 @@ public class SolarisFileSystem implements FileSystem {
     public OSFileStore[] getFileStores() {
         List<OSFileStore> fsList = new ArrayList<>();
 
+        // Get inode usage data
+        Map<String, Long> inodeFreeMap = new HashMap<>();
+        Map<String, Long> inodeTotalMap = new HashMap<>();
+        String key = null;
+        String total = null;
+        String free = null;
+        for (String line : ExecutingCommand.runNative("df -g")) {
+            /*- Sample Output:
+            /                  (/dev/md/dsk/d0    ):         8192 block size          1024 frag size
+            41310292 total blocks   18193814 free blocks 17780712 available        2486848 total files
+             2293351 free files     22282240 filesys id
+                 ufs fstype       0x00000004 flag             255 filename length
+            */
+            if (line.startsWith("/")) {
+                key = ParseUtil.whitespaces.split(line)[0];
+                total = null;
+            } else if (line.contains("available") && line.contains("total files")) {
+                total = ParseUtil.getTextBetweenStrings(line, "available", "total files").trim();
+            } else if (line.contains("free files")) {
+                free = ParseUtil.getTextBetweenStrings(line, "", "free files").trim();
+                if (key != null && total != null) {
+                    inodeFreeMap.put(key, ParseUtil.parseLongOrDefault(free, 0L));
+                    inodeTotalMap.put(key, ParseUtil.parseLongOrDefault(total, 0L));
+                    key = null;
+                }
+            }
+        }
+
         // Get mount table
         for (String fs : ExecutingCommand.runNative("cat /etc/mnttab")) {
             String[] split = ParseUtil.whitespaces.split(fs);
@@ -129,11 +164,22 @@ public class SolarisFileSystem implements FileSystem {
             } else {
                 description = "Mount Point";
             }
-            // No UUID info on Solaris
-            OSFileStore osStore = new OSFileStore(name, volume, path, description, type, "", usableSpace, totalSpace);
+
+            // Add to the list
+            OSFileStore osStore = new OSFileStore();
+            osStore.setName(name);
+            osStore.setVolume(volume);
+            osStore.setMount(path);
+            osStore.setDescription(description);
+            osStore.setType(type);
+            osStore.setUUID(""); // No UUID info on Solaris
+            osStore.setUsableSpace(usableSpace);
+            osStore.setTotalSpace(totalSpace);
+            osStore.setFreeInodes(inodeFreeMap.containsKey(path) ? inodeFreeMap.get(path) : 0L);
+            osStore.setTotalInodes(inodeTotalMap.containsKey(path) ? inodeTotalMap.get(path) : 0L);
             fsList.add(osStore);
         }
-        return fsList.toArray(new OSFileStore[fsList.size()]);
+        return fsList.toArray(new OSFileStore[0]);
     }
 
     @Override

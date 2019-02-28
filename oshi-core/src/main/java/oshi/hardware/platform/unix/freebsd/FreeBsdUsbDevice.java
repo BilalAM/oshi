@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.unix.freebsd;
 
@@ -27,7 +32,6 @@ import java.util.Map;
 import oshi.hardware.UsbDevice;
 import oshi.hardware.common.AbstractUsbDevice;
 import oshi.util.ExecutingCommand;
-import oshi.util.MapUtil;
 import oshi.util.ParseUtil;
 
 public class FreeBsdUsbDevice extends AbstractUsbDevice {
@@ -67,7 +71,7 @@ public class FreeBsdUsbDevice extends AbstractUsbDevice {
                     device.getProductId(), device.getSerialNumber(), new FreeBsdUsbDevice[0]));
             addDevicesToList(deviceList, device.getConnectedDevices());
         }
-        return deviceList.toArray(new UsbDevice[deviceList.size()]);
+        return deviceList.toArray(new UsbDevice[0]);
     }
 
     private static void addDevicesToList(List<UsbDevice> deviceList, UsbDevice[] connectedDevices) {
@@ -127,7 +131,7 @@ public class FreeBsdUsbDevice extends AbstractUsbDevice {
                 // Store parent for later usbus-skipping
                 parentMap.put(key, parent);
                 // Add this key to the parent's hubmap list
-                MapUtil.createNewListIfAbsent(hubMap, parent).add(key);
+                hubMap.computeIfAbsent(parent, x -> new ArrayList<>()).add(key);
             } else if (line.contains(".vendor =")) {
                 vendorMap.put(key, ParseUtil.getSingleQuoteStringValue(line));
             } else if (line.contains(".product =")) {
@@ -150,7 +154,7 @@ public class FreeBsdUsbDevice extends AbstractUsbDevice {
             hubMap.put(parent, hubMap.get(usbus));
             controllerDevices.add(getDeviceAndChildren(parent, "0000", "0000"));
         }
-        return controllerDevices.toArray(new UsbDevice[controllerDevices.size()]);
+        return controllerDevices.toArray(new UsbDevice[0]);
     }
 
     /**
@@ -166,15 +170,15 @@ public class FreeBsdUsbDevice extends AbstractUsbDevice {
      * @return A SolarisUsbDevice corresponding to this device
      */
     private static FreeBsdUsbDevice getDeviceAndChildren(String devPath, String vid, String pid) {
-        String vendorId = MapUtil.getOrDefault(vendorIdMap, devPath, vid);
-        String productId = MapUtil.getOrDefault(productIdMap, devPath, pid);
-        List<String> childPaths = MapUtil.getOrDefault(hubMap, devPath, new ArrayList<String>());
+        String vendorId = vendorIdMap.getOrDefault(devPath, vid);
+        String productId = productIdMap.getOrDefault(devPath, pid);
+        List<String> childPaths = hubMap.getOrDefault(devPath, new ArrayList<String>());
         List<FreeBsdUsbDevice> usbDevices = new ArrayList<>();
         for (String path : childPaths) {
             usbDevices.add(getDeviceAndChildren(path, vendorId, productId));
         }
         Collections.sort(usbDevices);
-        return new FreeBsdUsbDevice(MapUtil.getOrDefault(nameMap, devPath, vendorId + ":" + productId), "", vendorId,
-                productId, "", usbDevices.toArray(new UsbDevice[usbDevices.size()]));
+        return new FreeBsdUsbDevice(nameMap.getOrDefault(devPath, vendorId + ":" + productId), "", vendorId, productId,
+                "", usbDevices.toArray(new UsbDevice[0]));
     }
 }

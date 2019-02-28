@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os;
 
@@ -32,57 +37,38 @@ public class OSFileStore implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String name;
-
     private String volume;
-
-    private String logicalVolume;
-
+    private String logicalVolume = "";
     private String mount;
-
     private String description;
-
     private String fsType;
-
     private String uuid;
-
     private long usableSpace;
-
     private long totalSpace;
+    private long freeInodes = -1;
+    private long totalInodes = -1;
 
     public OSFileStore() {
     }
 
     /**
-     * Creates an OSFileStore with the specified parameters.
+     * Creates a copy of an OSFileStore.
      *
-     * @param newName
-     *            Name of the filestore
-     * @param newVolume
-     *            Volume of the filestore
-     * @param newMount
-     *            Mountpoint of the filestore
-     * @param newDescription
-     *            Description of the file store
-     * @param newType
-     *            Type of the filestore, e.g. FAT, NTFS, etx2, ext4, etc.
-     * @param newUuid
-     *            UUID/GUID of the filestore
-     * @param newUsableSpace
-     *            Available/usable bytes
-     * @param newTotalSpace
-     *            Total bytes
+     * @param fileStore
+     *            OSFileStore which is copied
      */
-    public OSFileStore(String newName, String newVolume, String newMount, String newDescription, String newType,
-            String newUuid, long newUsableSpace, long newTotalSpace) {
-        setName(newName);
-        setVolume(newVolume);
-        setLogicalVolume("");
-        setMount(newMount);
-        setDescription(newDescription);
-        setType(newType);
-        setUUID(newUuid);
-        setUsableSpace(newUsableSpace);
-        setTotalSpace(newTotalSpace);
+    public OSFileStore(OSFileStore fileStore) {
+        setName(fileStore.getName());
+        setVolume(fileStore.getVolume());
+        setLogicalVolume(fileStore.getLogicalVolume());
+        setMount(fileStore.getMount());
+        setDescription(fileStore.getDescription());
+        setType(fileStore.getType());
+        setUUID(fileStore.getUUID());
+        setUsableSpace(fileStore.getUsableSpace());
+        setTotalSpace(fileStore.getTotalSpace());
+        setFreeInodes(fileStore.getFreeInodes());
+        setTotalInodes(fileStore.getTotalInodes());
     }
 
     /**
@@ -258,5 +244,45 @@ public class OSFileStore implements Serializable {
      */
     public void setTotalSpace(long value) {
         this.totalSpace = value;
+    }
+
+    /**
+     * Usable / free inodes on the drive. Not applicable on Windows.
+     *
+     * @return Usable / free inodes on the drive (count), or -1 if unimplemented
+     */
+    public long getFreeInodes() {
+        return this.freeInodes;
+    }
+
+    /**
+     * Sets usable inodes on the drive.
+     *
+     * @param value
+     *            Number of free inodes.
+     */
+    public void setFreeInodes(long value) {
+        this.freeInodes = value;
+    }
+
+    /**
+     * Total / maximum number of inodes of the filesystem. Not applicable on
+     * Windows.
+     *
+     * @return Total / maximum number of inodes of the filesystem (count), or -1
+     *         if unimplemented
+     */
+    public long getTotalInodes() {
+        return this.totalInodes;
+    }
+
+    /**
+     * Sets the total / maximum number of inodes on the filesystem.
+     *
+     * @param value
+     *            Total / maximum count of inodes
+     */
+    public void setTotalInodes(long value) {
+        this.totalInodes = value;
     }
 }

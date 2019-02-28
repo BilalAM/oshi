@@ -1,33 +1,37 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
- * <p>
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- * <p>
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- * <p>
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- * <p>
- * Contributors:
+ * OSHI (https://github.com/oshi/oshi)
+ *
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.unix.freebsd;
-
-import oshi.hardware.SoundCard;
-import oshi.hardware.common.AbstractSoundCard;
-import oshi.util.ExecutingCommand;
-import oshi.util.ParseUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import oshi.hardware.SoundCard;
+import oshi.hardware.common.AbstractSoundCard;
+import oshi.util.ExecutingCommand;
+import oshi.util.ParseUtil;
 
 /**
  * Gets soundcard.
@@ -38,8 +42,8 @@ public class FreeBsdSoundCard extends AbstractSoundCard {
 
     private static final String LSHAL = "lshal";
 
-    private static Map<String, String> vendorMap = new HashMap<String, String>();
-    private static Map<String, String> productMap = new HashMap<String, String>();
+    private static Map<String, String> vendorMap = new HashMap<>();
+    private static Map<String, String> productMap = new HashMap<>();
 
     public FreeBsdSoundCard(String kernelVersion, String name, String codec) {
         super(kernelVersion, name, codec);
@@ -55,21 +59,20 @@ public class FreeBsdSoundCard extends AbstractSoundCard {
                 // we have the key.
                 key = ParseUtil.getSingleQuoteStringValue(line);
                 continue;
+            }
 
-            } else if (key.isEmpty()) {
+            line = line.trim();
+
+            if (key.isEmpty() || line.isEmpty()) {
                 continue;
             }
-            line = line.trim();
-            if (line.isEmpty()) {
-                continue;
-            } else if (line.contains("freebsd.driver =") && "pcm".equals(ParseUtil.getSingleQuoteStringValue(line))) {
+
+            if (line.contains("freebsd.driver =") && "pcm".equals(ParseUtil.getSingleQuoteStringValue(line))) {
                 sounds.add(key);
-            } else if (line.contains(("info.product"))) {
-                productMap.put(key, ParseUtil.getStringBetween(line,'\''));
-                continue;
+            } else if (line.contains("info.product")) {
+                productMap.put(key, ParseUtil.getStringBetween(line, '\''));
             } else if (line.contains("info.vendor")) {
-                vendorMap.put(key, ParseUtil.getStringBetween(line,'\''));
-                continue;
+                vendorMap.put(key, ParseUtil.getStringBetween(line, '\''));
             }
         }
         List<SoundCard> soundCards = new ArrayList<>();

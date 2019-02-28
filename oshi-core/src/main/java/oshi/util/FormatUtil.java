@@ -1,27 +1,31 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -58,6 +62,8 @@ public class FormatUtil {
      * Two's complement reference: 2^64.
      */
     private static final BigInteger TWOS_COMPLEMENT_REF = BigInteger.ONE.shiftLeft(64);
+
+    public static final String HEX_ERROR = "0x%08X";
 
     private FormatUtil() {
     }
@@ -247,55 +253,13 @@ public class FormatUtil {
     }
 
     /**
-     * Returns a new String composed of copies of the CharSequence elements
-     * joined together with a copy of the specified delimiter.
-     *
-     * This is a Java 7 implementation of Java 8's String.join
-     *
-     * @param delimiter
-     *            the delimiter that separates each element
-     * @param elements
-     *            the elements to join together.
-     * @return a new String that is composed of the elements separated by the
-     *         delimiter
+     * Translate an integer error code to its hex notation
+     * 
+     * @param errorCode
+     *            The error code
+     * @return A string representing the error as 0x....
      */
-    public static String join(CharSequence delimiter, CharSequence... elements) {
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (CharSequence cs : elements) {
-            if (first) {
-                first = false;
-            } else {
-                sb.append(delimiter);
-            }
-            sb.append(cs);
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Returns a new String composed of copies of the CharSequence elements
-     * joined together with a copy of the specified delimiter.
-     *
-     * This is a Java 7 implementation of Java 8's String.join
-     *
-     * @param delimiter
-     *            a sequence of characters that is used to separate each of the
-     *            elements in the resulting String
-     * @param elements
-     *            an Iterable that will have its elements joined together.
-     * @return a new String that is composed from the elements argument
-     */
-    public static String join(CharSequence delimiter, Iterable<? extends CharSequence> elements) {
-        StringBuilder sb = new StringBuilder();
-        Iterator<?> iter = elements.iterator();
-        if (iter.hasNext()) {
-            sb.append(iter.next().toString());
-        }
-        while (iter.hasNext()) {
-            sb.append(delimiter);
-            sb.append(iter.next().toString());
-        }
-        return sb.toString();
+    public static String formatError(int errorCode) {
+        return String.format(HEX_ERROR, errorCode);
     }
 }

@@ -1,3 +1,45 @@
+
+# Guide to upgrading from OSHI 3.x to 4.x
+
+OSHI 4.0 requires minimum Java 8 compatibility.
+
+The `oshi-json` artifact has been completely removed. It is trivial to obtain
+JSON output using [Jackson's ObjectMapper](http://www.mkyong.com/java/
+jackson-2-convert-java-object-to-from-json/).
+
+There is a new `oshi-demo` artifact which will contain many "how to" classes
+to demonstrate OSHI's capabilities and integration with other libraries.
+
+## API Changes
+
+Several changes in the API highlight which attributes do not change and which
+fetch dynamic information, as well as highlight operations with latency or
+expensive computations.  In general the following rules are followed:
+ - getX() (and isX() for boolean) are lazy getters for the initial data
+query, and will store the value in an attribute, returning that same value on
+subsequent calls.  When relevant, an updateAtrributes() method will be 
+available to cause the getters to return updated values.
+ - queryX() will get the latest value and typically identify more expensive
+ (in cpu or time) methods.
+
+The following getX() methods are now queryX():
+ - NetworkIF: getNetworkInterface() -> queryNetworkInterface() to prevent
+Jackson's ObjectMapper from attempting to serialize the returned object.
+
+There is a new `VirtualMemory `class which is accessible with a getter from 
+`GlobalMemory`.  Methods associated with swap file usage were moved to this
+new class.
+
+The `CentralProcessor` setters were removed from the API. The methods
+`getSystemCpuLoadBetweenTicks()` and `getProcessorCpuLoadBetweenTicks()` now take
+an argument with the previous set of ticks, rather than internally saving the
+previous call. This enables users to measure over a longer period or multiple
+different periods.  The `getSystemCpuLoad()` method is now a direct passthrough
+to the `OperatingSystemMXBean` method if running an Oracle JVM, otherwise it
+returns a negative value.  The no-argument `getSystemLoadAverage()` has been 
+removed; users can call with an argument of 1 to obtain the same value. 
+
+
 # Guide to upgrading from OSHI 2.x to 3.x
 
 The most significant change in OSHI 3.0 is the separation of JSON output to a

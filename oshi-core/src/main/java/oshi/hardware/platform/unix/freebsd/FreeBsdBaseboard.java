@@ -1,35 +1,84 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.unix.freebsd;
 
 import oshi.hardware.common.AbstractBaseboard;
+import oshi.util.Constants;
 import oshi.util.ExecutingCommand;
 
+/**
+ * Baseboard data obtained by dmidecode
+ */
 final class FreeBsdBaseboard extends AbstractBaseboard {
 
     private static final long serialVersionUID = 1L;
 
-    FreeBsdBaseboard() {
-        init();
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getManufacturer() {
+        if (this.manufacturer == null) {
+            readDmiDecode();
+        }
+        return super.getManufacturer();
     }
 
-    private void init() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getModel() {
+        if (this.model == null) {
+            readDmiDecode();
+        }
+        return super.getModel();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getVersion() {
+        if (this.version == null) {
+            readDmiDecode();
+        }
+        return super.getVersion();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getSerialNumber() {
+        if (this.serialNumber == null) {
+            readDmiDecode();
+        }
+        return super.getSerialNumber();
+    }
+
+    private void readDmiDecode() {
 
         // $ sudo dmidecode -t system
         // # dmidecode 3.0
@@ -52,41 +101,29 @@ final class FreeBsdBaseboard extends AbstractBaseboard {
         // System Boot Information
         // Status: No errors detected
 
-        String manufacturer = "";
         final String manufacturerMarker = "Manufacturer:";
-        String model = "";
         final String productNameMarker = "Product Name:";
-        String version = "";
         final String versionMarker = "Version:";
-        String serialNumber = "";
         final String serialNumMarker = "Serial Number:";
 
         // Only works with root permissions but it's all we've got
         for (final String checkLine : ExecutingCommand.runNative("dmidecode -t baseboard")) {
             if (checkLine.contains(manufacturerMarker)) {
-                manufacturer = checkLine.split(manufacturerMarker)[1].trim();
+                String manufacturer = checkLine.split(manufacturerMarker)[1].trim();
+                this.manufacturer = manufacturer.isEmpty() ? Constants.UNKNOWN : manufacturer;
             }
             if (checkLine.contains(productNameMarker)) {
-                model = checkLine.split(productNameMarker)[1].trim();
+                String model = checkLine.split(productNameMarker)[1].trim();
+                this.model = model.isEmpty() ? Constants.UNKNOWN : model;
             }
             if (checkLine.contains(versionMarker)) {
-                version = checkLine.split(versionMarker)[1].trim();
+                String version = checkLine.split(versionMarker)[1].trim();
+                this.version = version.isEmpty() ? Constants.UNKNOWN : version;
             }
             if (checkLine.contains(serialNumMarker)) {
-                serialNumber = checkLine.split(serialNumMarker)[1].trim();
+                String serialNumber = checkLine.split(serialNumMarker)[1].trim();
+                this.serialNumber = serialNumber.isEmpty() ? Constants.UNKNOWN : serialNumber;
             }
-        }
-        if (!manufacturer.isEmpty()) {
-            setManufacturer(manufacturer);
-        }
-        if (!model.isEmpty()) {
-            setModel(model);
-        }
-        if (!version.isEmpty()) {
-            setVersion(version);
-        }
-        if (!serialNumber.isEmpty()) {
-            setSerialNumber(serialNumber);
         }
     }
 }

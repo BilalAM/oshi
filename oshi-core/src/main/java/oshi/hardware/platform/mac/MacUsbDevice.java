@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.mac;
 
@@ -35,7 +40,6 @@ import oshi.jna.platform.mac.CoreFoundation;
 import oshi.jna.platform.mac.CoreFoundation.CFMutableDictionaryRef;
 import oshi.jna.platform.mac.CoreFoundation.CFTypeRef;
 import oshi.jna.platform.mac.IOKit;
-import oshi.util.MapUtil;
 import oshi.util.platform.mac.CfUtil;
 import oshi.util.platform.mac.IOKitUtil;
 
@@ -72,7 +76,7 @@ public class MacUsbDevice extends AbstractUsbDevice {
         for (UsbDevice device : devices) {
             addDevicesToList(deviceList, device.getConnectedDevices());
         }
-        return deviceList.toArray(new UsbDevice[deviceList.size()]);
+        return deviceList.toArray(new UsbDevice[0]);
     }
 
     private static void addDevicesToList(List<UsbDevice> deviceList, UsbDevice[] connectedDevices) {
@@ -143,7 +147,7 @@ public class MacUsbDevice extends AbstractUsbDevice {
                     IOKit.INSTANCE.IORegistryEntryGetRegistryEntryID(parent.getValue(), parentId);
                 }
                 // Store parent in map
-                MapUtil.createNewListIfAbsent(hubMap, parentId.getValue()).add(childId.getValue());
+                hubMap.computeIfAbsent(parentId.getValue(), x -> new ArrayList<>()).add(childId.getValue());
 
                 // Get device name and store in map
                 IOKit.INSTANCE.IORegistryEntryGetName(childDevice, buffer);
@@ -183,7 +187,7 @@ public class MacUsbDevice extends AbstractUsbDevice {
         for (Long controller : usbControllers) {
             controllerDevices.add(getDeviceAndChildren(controller, "0000", "0000"));
         }
-        return controllerDevices.toArray(new UsbDevice[controllerDevices.size()]);
+        return controllerDevices.toArray(new UsbDevice[0]);
     }
 
     /**
@@ -251,17 +255,16 @@ public class MacUsbDevice extends AbstractUsbDevice {
      * @return A MacUsbDevice corresponding to this device
      */
     private static MacUsbDevice getDeviceAndChildren(Long registryEntryId, String vid, String pid) {
-        String vendorId = MapUtil.getOrDefault(vendorIdMap, registryEntryId, vid);
-        String productId = MapUtil.getOrDefault(productIdMap, registryEntryId, pid);
-        List<Long> childIds = MapUtil.getOrDefault(hubMap, registryEntryId, new ArrayList<Long>());
+        String vendorId = vendorIdMap.getOrDefault(registryEntryId, vid);
+        String productId = productIdMap.getOrDefault(registryEntryId, pid);
+        List<Long> childIds = hubMap.getOrDefault(registryEntryId, new ArrayList<Long>());
         List<MacUsbDevice> usbDevices = new ArrayList<>();
         for (Long id : childIds) {
             usbDevices.add(getDeviceAndChildren(id, vendorId, productId));
         }
         Collections.sort(usbDevices);
-        return new MacUsbDevice(MapUtil.getOrDefault(nameMap, registryEntryId, vendorId + ":" + productId),
-                MapUtil.getOrDefault(vendorMap, registryEntryId, ""), vendorId, productId,
-                MapUtil.getOrDefault(serialMap, registryEntryId, ""),
-                usbDevices.toArray(new UsbDevice[usbDevices.size()]));
+        return new MacUsbDevice(nameMap.getOrDefault(registryEntryId, vendorId + ":" + productId),
+                vendorMap.getOrDefault(registryEntryId, ""), vendorId, productId,
+                serialMap.getOrDefault(registryEntryId, ""), usbDevices.toArray(new UsbDevice[0]));
     }
 }

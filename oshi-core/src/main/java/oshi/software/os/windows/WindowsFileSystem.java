@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os.windows;
 
@@ -25,14 +30,16 @@ import java.util.Map;
 
 import com.sun.jna.platform.win32.Kernel32; //NOSONAR
 import com.sun.jna.platform.win32.WinNT;
+import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
+import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
-import oshi.jna.platform.windows.WbemcliUtil.WmiQuery;
-import oshi.jna.platform.windows.WbemcliUtil.WmiResult;
+import oshi.data.windows.PerfCounterQuery;
+import oshi.data.windows.PerfCounterWildcardQuery;
+import oshi.data.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 import oshi.software.os.FileSystem;
 import oshi.software.os.OSFileStore;
 import oshi.util.ParseUtil;
-import oshi.util.platform.windows.PerfDataUtil;
-import oshi.util.platform.windows.PerfDataUtil.PerfCounter;
+import oshi.util.platform.windows.WmiQueryHandler;
 import oshi.util.platform.windows.WmiUtil;
 
 /**
@@ -55,19 +62,37 @@ public class WindowsFileSystem implements FileSystem {
         DESCRIPTION, DRIVETYPE, FILESYSTEM, FREESPACE, NAME, PROVIDERNAME, SIZE;
     }
 
-    private final transient WmiQuery<LogicalDiskProperty> LOGICAL_DISK_QUERY = new WmiQuery<>("Win32_LogicalDisk",
+    private final transient WmiQuery<LogicalDiskProperty> logicalDiskQuery = new WmiQuery<>("Win32_LogicalDisk",
             LogicalDiskProperty.class);
+
+    private final transient WmiQueryHandler wmiQueryHandler = WmiQueryHandler.createInstance();
 
     /*
      * For handle counts
      */
-    enum HandleCountProperty {
-        HANDLECOUNT;
+    enum HandleCountProperty implements PdhCounterWildcardProperty {
+        // First element defines WMI instance name field and PDH instance filter
+        NAME(PerfCounterQuery.TOTAL_INSTANCE),
+        // Remaining elements define counters
+        HANDLECOUNT("Handle Count");
+
+        private final String counter;
+
+        HandleCountProperty(String counter) {
+            this.counter = counter;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public String getCounter() {
+            return counter;
+        }
     }
 
-    // Only one of these will be used
-    private transient PerfCounter handleCountCounter = null;
-    private transient WmiQuery<HandleCountProperty> handleCountQuery = null;
+    private final transient PerfCounterWildcardQuery<HandleCountProperty> handlePerfCounters = new PerfCounterWildcardQuery<>(
+            HandleCountProperty.class, "Process", "Win32_Process");
 
     private static final long MAX_WINDOWS_HANDLES;
     static {
@@ -84,15 +109,6 @@ public class WindowsFileSystem implements FileSystem {
     public WindowsFileSystem() {
         // Set error mode to fail rather than prompt for FLoppy/CD-Rom
         Kernel32.INSTANCE.SetErrorMode(SEM_FAILCRITICALERRORS);
-        initPdhCounters();
-    }
-
-    private void initPdhCounters() {
-        this.handleCountCounter = PerfDataUtil.createCounter("Process", "_Total", "Handle Count");
-        if (!PerfDataUtil.addCounterToQuery(handleCountCounter)) {
-            this.handleCountCounter = null;
-            this.handleCountQuery = new WmiQuery<>("Win32_Process", HandleCountProperty.class);
-        }
     }
 
     /**
@@ -128,7 +144,7 @@ public class WindowsFileSystem implements FileSystem {
                 result.add(wmiVolume);
             }
         }
-        return result.toArray(new OSFileStore[result.size()]);
+        return result.toArray(new OSFileStore[0]);
     }
 
     /**
@@ -183,8 +199,16 @@ public class WindowsFileSystem implements FileSystem {
 
             if (!strMount.isEmpty()) {
                 // Volume is mounted
-                fs.add(new OSFileStore(String.format("%s (%s)", strName, strMount), volume, strMount,
-                        getDriveType(strMount), strFsType, uuid, systemFreeBytes.getValue(), totalBytes.getValue()));
+                OSFileStore osStore = new OSFileStore();
+                osStore.setName(String.format("%s (%s)", strName, strMount));
+                osStore.setVolume(volume);
+                osStore.setMount(strMount);
+                osStore.setDescription(getDriveType(strMount));
+                osStore.setType(strFsType);
+                osStore.setUUID(uuid);
+                osStore.setUsableSpace(systemFreeBytes.getValue());
+                osStore.setTotalSpace(totalBytes.getValue());
+                fs.add(osStore);
             }
             retVal = Kernel32.INSTANCE.FindNextVolume(hVol, aVolume, BUFSIZE);
             if (!retVal) {
@@ -207,7 +231,7 @@ public class WindowsFileSystem implements FileSystem {
         long total;
         List<OSFileStore> fs = new ArrayList<>();
 
-        WmiResult<LogicalDiskProperty> drives = WmiUtil.queryWMI(LOGICAL_DISK_QUERY);
+        WmiResult<LogicalDiskProperty> drives = wmiQueryHandler.queryWMI(this.logicalDiskQuery);
 
         for (int i = 0; i < drives.getResultCount(); i++) {
             free = WmiUtil.getUint64(drives, LogicalDiskProperty.FREESPACE, i);
@@ -228,8 +252,16 @@ public class WindowsFileSystem implements FileSystem {
                 }
             }
 
-            fs.add(new OSFileStore(String.format("%s (%s)", description, name), volume, name + "\\", getDriveType(name),
-                    WmiUtil.getString(drives, LogicalDiskProperty.FILESYSTEM, i), "", free, total));
+            OSFileStore osStore = new OSFileStore();
+            osStore.setName(String.format("%s (%s)", description, name));
+            osStore.setVolume(volume);
+            osStore.setMount(name + "\\");
+            osStore.setDescription(getDriveType(name));
+            osStore.setType(WmiUtil.getString(drives, LogicalDiskProperty.FILESYSTEM, i));
+            osStore.setUUID("");
+            osStore.setUsableSpace(free);
+            osStore.setTotalSpace(total);
+            fs.add(osStore);
         }
 
         return fs;
@@ -261,16 +293,13 @@ public class WindowsFileSystem implements FileSystem {
 
     @Override
     public long getOpenFileDescriptors() {
-        // Try PDH if counter exists
-        if (handleCountCounter != null) {
-            PerfDataUtil.updateQuery(this.handleCountCounter);
-            return PerfDataUtil.queryCounter(this.handleCountCounter);
-        }
-        // Use WMI instead
-        WmiResult<HandleCountProperty> result = WmiUtil.queryWMI(this.handleCountQuery);
+        Map<HandleCountProperty, List<Long>> valueListMap = this.handlePerfCounters.queryValuesWildcard();
+        List<Long> valueList = valueListMap.get(HandleCountProperty.HANDLECOUNT);
         long descriptors = 0L;
-        for (int i = 0; i < result.getResultCount(); i++) {
-            descriptors += WmiUtil.getUint32(result, HandleCountProperty.HANDLECOUNT, i);
+        if (valueList != null) {
+            for (int i = 0; i < valueList.size(); i++) {
+                descriptors += valueList.get(i);
+            }
         }
         return descriptors;
     }

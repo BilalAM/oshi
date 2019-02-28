@@ -1,35 +1,39 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.util;
 
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.Test;
 
 /**
  * The Class ParseUtilTest.
  */
 public class ParseUtilTest {
-
     /**
      * Test parse hertz.
      */
@@ -62,6 +66,11 @@ public class ParseUtilTest {
         assertEquals(1L, ParseUtil.parseLastLong("foo : 1", 0L));
         assertEquals(2L, ParseUtil.parseLastLong("foo", 2L));
         assertEquals(2147483648L, ParseUtil.parseLastLong("max_int plus one is 2147483648", 3L));
+
+        double epsilon = 1.1102230246251565E-16;
+        assertEquals(-1d, ParseUtil.parseLastDouble("foo : bar", -1d), epsilon);
+        assertEquals(1.0, ParseUtil.parseLastDouble("foo : 1.0", 0d), epsilon);
+        assertEquals(2d, ParseUtil.parseLastDouble("foo", 2d), epsilon);
     }
 
     /**
@@ -153,6 +162,16 @@ public class ParseUtilTest {
     }
 
     /**
+     * Test unsigned long to signed long
+     */
+    @Test
+    public void testUnsignedLongToSignedLong() {
+        assertEquals(1L, ParseUtil.unsignedLongToSignedLong(Long.MAX_VALUE + 2));
+        assertEquals(123L, ParseUtil.unsignedLongToSignedLong(123));
+        assertEquals(9223372036854775807L, ParseUtil.unsignedLongToSignedLong(9223372036854775807L));
+    }
+
+    /**
      * Test hex string to string
      */
     @Test
@@ -238,14 +257,19 @@ public class ParseUtilTest {
         assertEquals("", ParseUtil.getSingleQuoteStringValue("foo = bar (string)"));
     }
 
+    @Test
+    public void testGetDoubleQuoteStringValue() {
+        assertEquals("bar", ParseUtil.getDoubleQuoteStringValue("foo = \"bar\" (string)"));
+        assertEquals("", ParseUtil.getDoubleQuoteStringValue("hello"));
+    }
 
     /**
      * Test parse SingleQuoteBetweenMultipleQuotes
      */
     @Test
-    public void testGetStringBetweenMultipleQuotes(){
-        assertEquals("hello $ is" , ParseUtil.getStringBetween("hello = $hello $ is $",'$'));
-        assertEquals("Realtek AC'97 Audio" , ParseUtil.getStringBetween("pci.device = 'Realtek AC'97 Audio'",'\''));
+    public void testGetStringBetweenMultipleQuotes() {
+        assertEquals("hello $ is", ParseUtil.getStringBetween("hello = $hello $ is $", '$'));
+        assertEquals("Realtek AC'97 Audio", ParseUtil.getStringBetween("pci.device = 'Realtek AC'97 Audio'", '\''));
     }
 
     /**
@@ -316,5 +340,29 @@ public class ParseUtilTest {
         foo = String.format("Array too short %d %d %d %d", 123, 456, 789, now);
         result = ParseUtil.parseStringToLongArray(foo, indices, 2, ' ');
         assertEquals(0, result[1]);
+    }
+
+    @Test
+    public void testTextBetween() {
+        String text = "foo bar baz";
+        String before = "foo";
+        String after = "baz";
+        assertEquals(" bar ", ParseUtil.getTextBetweenStrings(text, before, after));
+
+        before = "";
+        assertEquals("foo bar ", ParseUtil.getTextBetweenStrings(text, before, after));
+
+        before = "food";
+        assertEquals("", ParseUtil.getTextBetweenStrings(text, before, after));
+
+        before = "foo";
+        after = "qux";
+        assertEquals("", ParseUtil.getTextBetweenStrings(text, before, after));
+
+    }
+
+    @Test
+    public void testFiletimeToMs() {
+        assertEquals(1172163600306L, ParseUtil.filetimeToUtcMs(128166372003061629L, false));
     }
 }

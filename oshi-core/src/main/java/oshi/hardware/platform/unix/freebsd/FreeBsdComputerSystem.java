@@ -1,41 +1,98 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.unix.freebsd;
 
+import oshi.hardware.Baseboard;
+import oshi.hardware.Firmware;
 import oshi.hardware.common.AbstractComputerSystem;
+import oshi.util.Constants;
 import oshi.util.ExecutingCommand;
 import oshi.util.ParseUtil;
 
 /**
- * Hardware data obtained from dmidecode
- *
- * @author widdis [at] gmail [dot] com
+ * Hardware data obtained from dmidecode.
  */
 final class FreeBsdComputerSystem extends AbstractComputerSystem {
 
     private static final long serialVersionUID = 1L;
 
-    FreeBsdComputerSystem() {
-        init();
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getManufacturer() {
+        if (this.manufacturer == null) {
+            readDmiDecode();
+        }
+        return this.manufacturer;
     }
 
-    private void init() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getModel() {
+        if (this.model == null) {
+            readDmiDecode();
+        }
+        return this.model;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String getSerialNumber() {
+        if (this.serialNumber == null) {
+            readDmiDecode();
+        }
+        return this.serialNumber;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Firmware getFirmware() {
+        if (this.firmware == null) {
+            this.firmware = new FreeBsdFirmware();
+        }
+        return this.firmware;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Baseboard getBaseboard() {
+        if (this.baseboard == null) {
+            this.baseboard = new FreeBsdBaseboard();
+        }
+        return this.baseboard;
+    }
+
+    private void readDmiDecode() {
 
         // $ sudo dmidecode -t system
         // # dmidecode 3.0
@@ -58,39 +115,33 @@ final class FreeBsdComputerSystem extends AbstractComputerSystem {
         // System Boot Information
         // Status: No errors detected
 
-        String manufacturer = "";
         final String manufacturerMarker = "Manufacturer:";
-        String productName = "";
         final String productNameMarker = "Product Name:";
-        String serialNumber = "";
         final String serialNumMarker = "Serial Number:";
 
         // Only works with root permissions but it's all we've got
         for (final String checkLine : ExecutingCommand.runNative("dmidecode -t system")) {
             if (checkLine.contains(manufacturerMarker)) {
-                manufacturer = checkLine.split(manufacturerMarker)[1].trim();
+                String manufacturer = checkLine.split(manufacturerMarker)[1].trim();
+                if (!manufacturer.isEmpty()) {
+                    this.manufacturer = manufacturer;
+                }
             }
             if (checkLine.contains(productNameMarker)) {
-                productName = checkLine.split(productNameMarker)[1].trim();
+                String productName = checkLine.split(productNameMarker)[1].trim();
+                if (!productName.isEmpty()) {
+                    this.model = productName;
+                }
             }
             if (checkLine.contains(serialNumMarker)) {
-                serialNumber = checkLine.split(serialNumMarker)[1].trim();
+                String serialNumber = checkLine.split(serialNumMarker)[1].trim();
+                this.serialNumber = serialNumber;
             }
         }
-        if (!manufacturer.isEmpty()) {
-            setManufacturer(manufacturer);
-        }
-        if (!productName.isEmpty()) {
-            setModel(productName);
-        }
-        if (serialNumber.isEmpty()) {
-            serialNumber = getSystemSerialNumber();
-        }
-        setSerialNumber(serialNumber);
 
-        setFirmware(new FreeBsdFirmware());
-
-        setBaseboard(new FreeBsdBaseboard());
+        if (this.serialNumber == null || serialNumber.isEmpty()) {
+            this.serialNumber = getSystemSerialNumber();
+        }
     }
 
     private String getSystemSerialNumber() {
@@ -100,6 +151,6 @@ final class FreeBsdComputerSystem extends AbstractComputerSystem {
                 return ParseUtil.getSingleQuoteStringValue(checkLine);
             }
         }
-        return "unknown";
+        return Constants.UNKNOWN;
     }
 }

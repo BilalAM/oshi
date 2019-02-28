@@ -1,29 +1,32 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.jna.platform.unix;
-
-import java.util.Arrays;
-import java.util.List;
 
 import com.sun.jna.Library;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.Structure.FieldOrder;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
 
@@ -44,29 +47,23 @@ public interface CLibrary extends Library {
     /**
      * Return type for BSD sysctl kern.boottime
      */
+    @FieldOrder({ "tv_sec", "tv_usec" })
     class Timeval extends Structure {
         public long tv_sec; // seconds
         public long tv_usec; // microseconds
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[] { "tv_sec", "tv_usec" });
-        }
     }
 
+    @FieldOrder({ "sa_family", "sa_data" })
     class Sockaddr extends Structure {
         public short sa_family;
         public byte[] sa_data = new byte[14];
 
         public static class ByReference extends Sockaddr implements Structure.ByReference {
         }
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[] { "sa_family", "sa_data" });
-        }
     }
 
+    @FieldOrder({ "ai_flags", "ai_family", "ai_socktype", "ai_protocol", "ai_addrlen", "ai_addr", "ai_canonname",
+            "ai_next" })
     class Addrinfo extends Structure {
         public int ai_flags;
         public int ai_family;
@@ -78,12 +75,6 @@ public interface CLibrary extends Library {
         public ByReference ai_next;
 
         public static class ByReference extends Addrinfo implements Structure.ByReference {
-        }
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[] { "ai_flags", "ai_family", "ai_socktype", "ai_protocol", "ai_addrlen",
-                    "ai_addr", "ai_canonname", "ai_next" });
         }
 
         public Addrinfo() {
@@ -273,13 +264,4 @@ public interface CLibrary extends Library {
      *         of the contents.
      */
     int readlink(String path, Pointer buf, int bufsize);
-
-    /**
-     * Returns the number of bytes in a memory page, where "page" is a
-     * fixed-length block, the unit for memory allocation and file mapping
-     * performed by mmap(2).
-     *
-     * @return the memory page size
-     */
-    int getpagesize();
 }

@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os.linux;
 
@@ -45,19 +50,19 @@ public class LinuxUserGroupInfo {
         private long lastRefreshedTimestamp;
 
         public OSUser getUser(String userId) {
-            if ((System.currentTimeMillis() - lastRefreshedTimestamp) > CACHE_REFRESH_TIME_MS) {
+            if (System.currentTimeMillis() - this.lastRefreshedTimestamp > CACHE_REFRESH_TIME_MS) {
                 refresh();
             }
-            OSUser osUser = usersIdMap.get(userId);
+            OSUser osUser = this.usersIdMap.get(userId);
             if (osUser == null) {
                 refresh();
-                return usersIdMap.get(userId);
+                return this.usersIdMap.get(userId);
             }
             return osUser;
         }
 
         private void refresh() {
-            usersIdMap.clear();
+            this.usersIdMap.clear();
             List<String> passwd = ExecutingCommand.runNative("getent passwd");
             // see man 5 passwd for the fields
             for (String entry : passwd) {
@@ -69,14 +74,14 @@ public class LinuxUserGroupInfo {
                 String uid = split[2];
                 // it is allowed to have multiple entries for the same userId,
                 // we use the first one
-                if (!usersIdMap.containsKey(uid)) {
+                if (!this.usersIdMap.containsKey(uid)) {
                     OSUser user = new OSUser();
                     user.setUserId(uid);
                     user.setUserName(userName);
-                    usersIdMap.put(uid, user);
+                    this.usersIdMap.put(uid, user);
                 }
             }
-            lastRefreshedTimestamp = System.currentTimeMillis();
+            this.lastRefreshedTimestamp = System.currentTimeMillis();
         }
     }
 
@@ -85,19 +90,19 @@ public class LinuxUserGroupInfo {
         private long lastRefreshedTimestamp;
 
         public String getGroup(String groupId) {
-            if ((System.currentTimeMillis() - lastRefreshedTimestamp) > CACHE_REFRESH_TIME_MS) {
+            if (System.currentTimeMillis() - this.lastRefreshedTimestamp > CACHE_REFRESH_TIME_MS) {
                 refresh();
             }
-            String groupName = groupsIdMap.get(groupId);
+            String groupName = this.groupsIdMap.get(groupId);
             if (groupName == null) {
                 refresh();
-                return groupsIdMap.get(groupId);
+                return this.groupsIdMap.get(groupId);
             }
             return groupName;
         }
 
         private void refresh() {
-            groupsIdMap.clear();
+            this.groupsIdMap.clear();
             List<String> group = ExecutingCommand.runNative("getent group");
             // see man 5 group for the fields
             for (String entry : group) {
@@ -107,11 +112,11 @@ public class LinuxUserGroupInfo {
                 }
                 String groupName = split[0];
                 String gid = split[2];
-                if (!groupsIdMap.containsKey(gid)) {
-                    groupsIdMap.put(gid, groupName);
+                if (!this.groupsIdMap.containsKey(gid)) {
+                    this.groupsIdMap.put(gid, groupName);
                 }
             }
-            lastRefreshedTimestamp = System.currentTimeMillis();
+            this.lastRefreshedTimestamp = System.currentTimeMillis();
         }
     }
 }

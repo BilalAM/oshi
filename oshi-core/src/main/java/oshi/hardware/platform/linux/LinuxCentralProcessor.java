@@ -1,25 +1,34 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.linux;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -45,6 +54,9 @@ public class LinuxCentralProcessor extends AbstractCentralProcessor {
 
     private static final Logger LOG = LoggerFactory.getLogger(LinuxCentralProcessor.class);
 
+    // See https://www.kernel.org/doc/Documentation/cpu-freq/user-guide.txt
+    private static final String CPUFREQ_PATH = "/sys/devices/system/cpu/cpu";
+
     /**
      * Create a Processor
      */
@@ -52,8 +64,6 @@ public class LinuxCentralProcessor extends AbstractCentralProcessor {
         super();
         // Initialize class variables
         initVars();
-        // Initialize tick arrays
-        initTicks();
 
         LOG.debug("Initialized Processor");
     }
@@ -104,56 +114,134 @@ public class LinuxCentralProcessor extends AbstractCentralProcessor {
      * Updates logical and physical processor counts from /proc/cpuinfo
      */
     @Override
-    protected void calculateProcessorCounts() {
-        int[] uniqueID = new int[2];
-        uniqueID[0] = -1;
-        uniqueID[1] = -1;
-
-        Set<String> processorIDs = new HashSet<>();
-        Set<Integer> packageIDs = new HashSet<>();
-
+    protected LogicalProcessor[] initProcessorCounts() {
+        Map<Integer, Integer> numaNodeMap = mapNumaNodes();
         List<String> procCpu = FileUtil.readFile("/proc/cpuinfo");
+        List<LogicalProcessor> logProcs = new ArrayList<>();
+        int currentProcessor = 0;
+        int currentCore = 0;
+        int currentPackage = 0;
+        boolean first = true;
         for (String cpu : procCpu) {
             // Count logical processors
             if (cpu.startsWith("processor")) {
-                this.logicalProcessorCount++;
-            }
-            // Count unique combinations of core id and physical id.
-            if (cpu.startsWith("core id") || cpu.startsWith("cpu number")) {
-                uniqueID[0] = ParseUtil.parseLastInt(cpu, 0);
+                if (!first) {
+                    logProcs.add(new LogicalProcessor(currentProcessor, currentCore, currentPackage,
+                            numaNodeMap.getOrDefault(currentProcessor, 0)));
+                } else {
+                    first = false;
+                }
+                currentProcessor = ParseUtil.parseLastInt(cpu, 0);
+            } else if (cpu.startsWith("core id") || cpu.startsWith("cpu number")) {
+                // Count unique combinations of core id and physical id.
+                currentCore = ParseUtil.parseLastInt(cpu, 0);
             } else if (cpu.startsWith("physical id")) {
-                uniqueID[1] = ParseUtil.parseLastInt(cpu, 0);
-            }
-            if (uniqueID[0] >= 0 && uniqueID[1] >= 0) {
-                packageIDs.add(uniqueID[1]);
-                processorIDs.add(uniqueID[0] + " " + uniqueID[1]);
-                uniqueID[0] = -1;
-                uniqueID[1] = -1;
+                currentPackage = ParseUtil.parseLastInt(cpu, 0);
             }
         }
-        // Force at least one processor
-        if (this.logicalProcessorCount < 1) {
-            LOG.error("Couldn't find logical processor count. Assuming 1.");
-            this.logicalProcessorCount = 1;
+        logProcs.add(new LogicalProcessor(currentProcessor, currentCore, currentPackage,
+                numaNodeMap.getOrDefault(currentProcessor, 0)));
+        Set<Integer> physProcs = new HashSet<>();
+        Set<Integer> physPkgs = new HashSet<>();
+        for (LogicalProcessor logProc : logProcs) {
+            physProcs.add(logProc.getPhysicalProcessorNumber());
+            physPkgs.add(logProc.getPhysicalPackageNumber());
         }
-        this.physicalProcessorCount = processorIDs.size();
-        if (this.physicalProcessorCount < 1) {
-            LOG.error("Couldn't find physical processor count. Assuming 1.");
-            this.physicalProcessorCount = 1;
+        this.logicalProcessorCount = logProcs.size();
+        this.physicalProcessorCount = physProcs.size();
+        this.physicalPackageCount = physPkgs.size();
+
+        return logProcs.toArray(new LogicalProcessor[0]);
+    }
+
+    private Map<Integer, Integer> mapNumaNodes() {
+        Map<Integer, Integer> numaNodeMap = new HashMap<>();
+        // Get numa node info from lscpu
+        List<String> lscpu = ExecutingCommand.runNative("lscpu -p=cpu,node");
+        // Format:
+        // # comment lines starting with #
+        // # then comma-delimited cpu,node
+        // 0,0
+        // 1,0
+        for (String line : lscpu) {
+            if (line.startsWith("#")) {
+                continue;
+            }
+            String[] split = line.split(",");
+            if (split.length == 2) {
+                numaNodeMap.put(ParseUtil.parseIntOrDefault(split[0], 0), ParseUtil.parseIntOrDefault(split[1], 0));
+            }
         }
-        this.physicalPackageCount = packageIDs.size();
-        if (this.physicalPackageCount < 1) {
-            LOG.error("Couldn't find physical package count. Assuming 1.");
-            this.physicalPackageCount = 1;
-        }
+        return numaNodeMap;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public synchronized long[] getSystemCpuLoadTicks() {
-        return ProcUtil.getSystemCpuLoadTicks();
+    public long[] querySystemCpuLoadTicks() {
+        return ProcUtil.readSystemCpuLoadTicks();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long[] queryCurrentFreq() {
+        long[] freqs = new long[getLogicalProcessorCount()];
+        // Attempt to fill array from cpu-freq source
+        long max = 0L;
+        for (int i = 0; i < freqs.length; i++) {
+            freqs[i] = FileUtil.getLongFromFile(CPUFREQ_PATH + i + "/cpufreq/scaling_cur_freq");
+            if (freqs[i] == 0) {
+                freqs[i] = FileUtil.getLongFromFile(CPUFREQ_PATH + i + "/cpufreq/cpuinfo_cur_freq");
+            }
+            if (max < freqs[i]) {
+                max = freqs[i];
+            }
+        }
+        if (max > 0L) {
+            // If successful, array is filled with values in KHz.
+            for (int i = 0; i < freqs.length; i++) {
+                freqs[i] *= 1000L;
+            }
+            return freqs;
+        }
+        // If unsuccessful, try from /proc/cpuinfo
+        Arrays.fill(freqs, -1);
+        List<String> cpuInfo = FileUtil.readFile("/proc/cpuinfo");
+        int proc = 0;
+        for (String s : cpuInfo) {
+            if (s.toLowerCase().contains("cpu mhz")) {
+                freqs[proc] = (long) (ParseUtil.parseLastDouble(s, 0d) * 1_000_000);
+                if (++proc >= freqs.length) {
+                    break;
+                }
+            }
+        }
+        return freqs;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long queryMaxFreq() {
+        long max = 0L;
+        for (int i = 0; i < getLogicalProcessorCount(); i++) {
+            long freq = FileUtil.getLongFromFile(CPUFREQ_PATH + i + "/cpufreq/scaling_max_freq");
+            if (freq == 0) {
+                freq = FileUtil.getLongFromFile(CPUFREQ_PATH + i + "/cpufreq/cpuinfo_max_freq");
+            }
+            if (max < freq) {
+                max = freq;
+            }
+        }
+        if (max > 0L) {
+            // If successful, value is in KHz.
+            return max * 1000L;
+        }
+        return -1L;
     }
 
     /**
@@ -178,7 +266,7 @@ public class LinuxCentralProcessor extends AbstractCentralProcessor {
      * {@inheritDoc}
      */
     @Override
-    public long[][] getProcessorCpuLoadTicks() {
+    public long[][] queryProcessorCpuLoadTicks() {
         long[][] ticks = new long[this.logicalProcessorCount][TickType.values().length];
         // /proc/stat expected format
         // first line is overall user,nice,system,idle, etc.
@@ -215,15 +303,6 @@ public class LinuxCentralProcessor extends AbstractCentralProcessor {
     @Override
     public long getSystemUptime() {
         return (long) ProcUtil.getSystemUptimeSeconds();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @Deprecated
-    public String getSystemSerialNumber() {
-        return new LinuxComputerSystem().getSerialNumber();
     }
 
     /**

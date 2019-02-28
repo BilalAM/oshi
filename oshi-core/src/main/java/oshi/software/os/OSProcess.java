@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os;
 
@@ -123,7 +128,7 @@ public class OSProcess implements Serializable {
 
     /**
      * @return Returns the process current working directory.
-     * 
+     *
      *         On Windows, this value is only populated for the current process.
      */
     public String getCurrentWorkingDirectory() {
@@ -528,7 +533,7 @@ public class OSProcess implements Serializable {
     /**
      * Sets the number of open file handles (or network connections) that
      * belongs to the process
-     * 
+     *
      * @param count
      *            The number of handles
      */
@@ -542,16 +547,16 @@ public class OSProcess implements Serializable {
      *
      * On FreeBSD and Solaris, this value is only populated if information for a
      * single process id is requested.
-     * 
+     *
      * @return open files or -1 if unknown or not supported
      */
     public long getOpenFiles() {
-        return openFiles;
+        return this.openFiles;
     }
 
     /**
      * Calculates CPU usage of this process.
-     * 
+     *
      * @return The proportion of up time that the process was executing in
      *         kernel or user mode.
      */
@@ -569,8 +574,8 @@ public class OSProcess implements Serializable {
     public String toString() {
         StringBuilder builder = new StringBuilder("OSProcess@");
         builder.append(Integer.toHexString(hashCode()));
-        builder.append("[processID=").append(processID);
-        builder.append(", name=").append(name).append(']');
+        builder.append("[processID=").append(this.processID);
+        builder.append(", name=").append(this.name).append(']');
         return builder.toString();
     }
 }

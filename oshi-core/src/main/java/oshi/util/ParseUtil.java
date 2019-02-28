@@ -1,32 +1,39 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * String parsing utility.
@@ -71,6 +78,11 @@ public class ParseUtil {
 
     private static final Map<String, Long> multipliers;
 
+    // PDH timestamps are 1601 epoch, local time
+    // Constants to convert to UTC millis
+    private static final long EPOCH_DIFF = 11644473600000L;
+    private static final int TZ_OFFSET = TimeZone.getDefault().getOffset(System.currentTimeMillis());
+
     public static final Pattern whitespacesColonWhitespace = Pattern.compile("\\s+:\\s");
 
     public static final Pattern whitespaces = Pattern.compile("\\s+");
@@ -112,7 +124,7 @@ public class ParseUtil {
         Matcher matcher = HERTZ_PATTERN.matcher(hertz.trim());
         if (matcher.find() && matcher.groupCount() == 3) {
             // Regexp enforces #(.#) format so no test for NFE required
-            double value = Double.valueOf(matcher.group(1)) * MapUtil.getOrDefault(multipliers, matcher.group(3), -1L);
+            double value = Double.valueOf(matcher.group(1)) * multipliers.getOrDefault(matcher.group(3), -1L);
             if (value >= 0d) {
                 return (long) value;
             }
@@ -153,6 +165,24 @@ public class ParseUtil {
         } catch (NumberFormatException e) {
             LOG.trace(DEFAULT_LOG_MSG, s, e);
             return li;
+        }
+    }
+
+    /**
+     * Parse the last element of a space-delimited string to a value
+     *
+     * @param s
+     *            The string to parse
+     * @param d
+     *            Default double if not parsable
+     * @return value or the given default if not parsable
+     */
+    public static double parseLastDouble(String s, double d) {
+        try {
+            return Double.parseDouble(parseLastString(s));
+        } catch (NumberFormatException e) {
+            LOG.trace(DEFAULT_LOG_MSG, s, e);
+            return d;
         }
     }
 
@@ -261,14 +291,14 @@ public class ParseUtil {
      * Convert a string to an integer representation.
      *
      * @param str
-     *            A human readable string
+     *            A human readable ASCII string
      * @param size
      *            Number of characters to convert to the long. May not exceed 8.
      * @return An integer representing the string where each character is
      *         treated as a byte
      */
     public static long strToLong(String str, int size) {
-        return byteArrayToLong(str.getBytes(), size);
+        return byteArrayToLong(str.getBytes(StandardCharsets.US_ASCII), size);
     }
 
     /**
@@ -328,8 +358,21 @@ public class ParseUtil {
         // sign-extension,
         // then drop any copies of the sign bit, to prevent the value being
         // considered a negative one by Java if it is set
-        long longValue = (long) unsignedValue;
+        long longValue = unsignedValue;
         return longValue & 0xffffffffL;
+    }
+
+    /**
+     * Convert an unsigned long to a signed long value by stripping the sign
+     * bit. This method "rolls over" long values greater than the max value but
+     * ensures the result is never negative.
+     * 
+     * @param unsignedValue
+     *            The unsigned long value to convert.
+     * @return The signed long value.
+     */
+    public static long unsignedLongToSignedLong(long unsignedValue) {
+        return unsignedValue & 0x7fffffff_ffffffffL;
     }
 
     /**
@@ -413,7 +456,7 @@ public class ParseUtil {
      */
     public static long parseUnsignedLongOrDefault(String s, long defaultLong) {
         try {
-            return (new BigInteger(s)).longValue();
+            return new BigInteger(s).longValue();
         } catch (NumberFormatException e) {
             LOG.trace(DEFAULT_LOG_MSG, s, e);
             return defaultLong;
@@ -491,33 +534,41 @@ public class ParseUtil {
      * @return the value contained between single tick marks
      */
     public static String getSingleQuoteStringValue(String line) {
-        String[] split = line.split("'");
-        if (split.length < 2) {
-            return "";
-        }
-        return split[1];
+        return getStringBetween(line, '\'');
     }
 
     /**
-     * Gets a value between two characters having multiple same characters between them.
-     * <b>Examples : </b>
+     * Parse a string key = "value" (string)
+     * 
+     * @param line
+     *            the entire string
+     * @return the value contained between double tick marks
+     */
+    public static String getDoubleQuoteStringValue(String line) {
+        return getStringBetween(line, '"');
+    }
+
+    /**
+     * Gets a value between two characters having multiple same characters
+     * between them. <b>Examples : </b>
      * <ul>
-     *     <li>"name = 'James Gosling's Java'" ---> returns "James Gosling's Java"</li>
-     *     <li>"pci.name = 'Realtek AC'97 Audio Device'"  ---> returns "Realtek AC'97 Audio Device"</li>
+     * <li>"name = 'James Gosling's Java'" returns "James Gosling's Java"</li>
+     * <li>"pci.name = 'Realtek AC'97 Audio Device'" returns "Realtek AC'97
+     * Audio Device"</li>
      * </ul>
      *
      * @param line
-     *          The "key-value" pair line.
+     *            The "key-value" pair line.
      * @param c
-     *          The Trailing And Leading characters of the string line
+     *            The Trailing And Leading characters of the string line
      * @return : The value having the characters between them.
      */
-    public static String getStringBetween(String line , char c){
+    public static String getStringBetween(String line, char c) {
         int firstOcc = line.indexOf(c);
-        if(firstOcc < 0){
+        if (firstOcc < 0) {
             return "";
         }
-        return (line.substring(firstOcc + 1 , line.lastIndexOf(c))).trim();
+        return line.substring(firstOcc + 1, line.lastIndexOf(c)).trim();
     }
 
     /**
@@ -554,7 +605,7 @@ public class ParseUtil {
     /**
      * Removes all matching sub strings from the string. More efficient than
      * regexp.
-     * 
+     *
      * @param original
      *            source String to remove from
      * @param toRemove
@@ -562,12 +613,14 @@ public class ParseUtil {
      * @return The string with all matching substrings removed
      */
     public static String removeMatchingString(final String original, final String toRemove) {
-        if (original == null || original.isEmpty() || toRemove == null || toRemove.isEmpty())
+        if (original == null || original.isEmpty() || toRemove == null || toRemove.isEmpty()) {
             return original;
+        }
 
         int matchIndex = original.indexOf(toRemove, 0);
-        if (matchIndex == -1)
+        if (matchIndex == -1) {
             return original;
+        }
 
         StringBuilder buffer = new StringBuilder(original.length() - toRemove.length());
         int currIndex = 0;
@@ -586,12 +639,12 @@ public class ParseUtil {
      * predictable-length arrays such as outputs of reliably formatted Linux
      * proc or sys filesystem, minimizing new object creation. Users should
      * perform other sanity checks of data.
-     * 
+     *
      * The indices parameters are referenced assuming the length as specified,
      * and leading characters are ignored. For example, if the string is "foo 12
      * 34 5" and the length is 3, then index 0 is 12, index 1 is 34, and index 2
      * is 5.
-     * 
+     *
      * @param s
      *            The string to parse
      * @param indices
@@ -653,5 +706,61 @@ public class ParseUtil {
             return new long[indices.length];
         }
         return parsed;
+    }
+
+    /**
+     * Get a String in a line of text between two marker strings
+     *
+     * @param text
+     *            Text to search for match
+     * @param before
+     *            Start matching after this text
+     * @param after
+     *            End matching before this text
+     * @return Text between the strings before and after, or empty string if
+     *         either marker does not exist
+     */
+    public static String getTextBetweenStrings(String text, String before, String after) {
+
+        String result = "";
+
+        if (text.indexOf(before) >= 0 && text.indexOf(after) >= 0) {
+            result = text.substring(text.indexOf(before) + before.length(), text.length());
+            result = result.substring(0, result.indexOf(after));
+        }
+        return result;
+    }
+
+    /**
+     * Convert a long representing filetime (100-ns since 1601 epoch) to ms
+     * since 1970 epoch
+     *
+     * @param filetime
+     *            A 64-bit value equivalent to FILETIME
+     * @param local
+     *            True if converting from a local filetime (PDH counter); false
+     *            if already UTC (WMI PerfRawData classes)
+     * @return Equivalent milliseconds since the epoch
+     */
+    public static long filetimeToUtcMs(long filetime, boolean local) {
+        return filetime / 10000L - EPOCH_DIFF - (local ? TZ_OFFSET : 0L);
+    }
+
+    /**
+     * Parse a date in MM-DD-YYYY or MM/DD/YYYY to YYYY-MM-DD
+     * 
+     * @param dateString
+     *            The date in MM DD YYYY format
+     * @return The date in ISO YYYY-MM-DD format if parseable, or the original
+     *         string
+     */
+    public static String parseMmDdYyyyToYyyyMmDD(String dateString) {
+        try {
+            // Date is MM-DD-YYYY, convert to YYYY-MM-DD
+            return String.format("%s-%s-%s", dateString.substring(6, 10), dateString.substring(0, 2),
+                    dateString.substring(3, 5));
+        } catch (StringIndexOutOfBoundsException e) {
+            return dateString;
+        }
     }
 }

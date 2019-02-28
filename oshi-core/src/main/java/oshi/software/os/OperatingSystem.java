@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os;
 
@@ -35,7 +40,7 @@ public interface OperatingSystem extends Serializable {
      * Controls sorting of Process output
      */
     enum ProcessSort {
-        CPU, MEMORY, OLDEST, NEWEST, PID, PARENTPID, NAME
+    CPU, MEMORY, OLDEST, NEWEST, PID, PARENTPID, NAME
     }
 
     /**
@@ -80,9 +85,34 @@ public interface OperatingSystem extends Serializable {
      * @return An array of {@link oshi.software.os.OSProcess} objects for the
      *         specified number (or all) of currently running processes, sorted
      *         as specified. The array may contain null elements if a process
-     *         terminates during iteration.
+     *         terminates during iteration. Some fields that are slow to
+     *         retrieve (e.g., group information on Windows, open files on Unix
+     *         and Linux) will be skipped.
      */
     OSProcess[] getProcesses(int limit, ProcessSort sort);
+
+    /**
+     * Gets currently running processes. If a positive limit is specified,
+     * returns only that number of processes; zero will return all processes.
+     * The order may be specified by the sort parameter, for example, to return
+     * the top cpu or memory consuming processes; if null, no order is
+     * guaranteed.
+     *
+     * @param limit
+     *            Max number of results to return, or 0 to return all results
+     * @param sort
+     *            If not null, determines sorting of results
+     * @param slowFields
+     *            If false, skip {@link oshi.software.os.OSProcess} fields that
+     *            are slow to retrieve (e.g., group information on Windows, open
+     *            files on Unix and Linux). If true, include all fields,
+     *            regardless of how long it takes to retrieve the data.
+     * @return An array of {@link oshi.software.os.OSProcess} objects for the
+     *         specified number (or all) of currently running processes, sorted
+     *         as specified. The array may contain null elements if a process
+     *         terminates during iteration.
+     */
+    OSProcess[] getProcesses(int limit, ProcessSort sort, boolean slowFields);
 
     /**
      * Gets information on a currently running process
@@ -95,9 +125,9 @@ public interface OperatingSystem extends Serializable {
     OSProcess getProcess(int pid);
 
     /**
-     * Gets information on a currently running processes. This was primarily
-     * written to provide an optimized mechanism for windows based operating
-     * systems.
+     * Gets information on a currently running processes. This has improved
+     * performance on Windows based operating systems vs. iterating individual
+     * processes.
      *
      * @param pids
      *            A collection of process IDs
@@ -112,7 +142,7 @@ public interface OperatingSystem extends Serializable {
      * return all processes. The order may be specified by the sort parameter,
      * for example, to return the top cpu or memory consuming processes; if
      * null, no order is guaranteed.
-     * 
+     *
      * @param parentPid
      *            A process ID
      * @param limit
@@ -149,7 +179,7 @@ public interface OperatingSystem extends Serializable {
 
     /**
      * Gets the bitness (32 or 64) of the operating system.
-     * 
+     *
      * @return The number of bits supported by the operating system.
      */
     int getBitness();

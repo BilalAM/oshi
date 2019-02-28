@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.mac;
 
@@ -27,15 +32,12 @@ import com.sun.jna.platform.mac.SystemB.VMStatistics;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.LongByReference;
 
+import oshi.hardware.VirtualMemory;
 import oshi.hardware.common.AbstractGlobalMemory;
-import oshi.jna.platform.mac.SystemB.XswUsage;
-import oshi.util.ParseUtil;
 import oshi.util.platform.mac.SysctlUtil;
 
 /**
- * Memory obtained by host_statistics (vm_stat) and sysctl
- *
- * @author widdis[at]gmail[dot]com
+ * Memory obtained by host_statistics (vm_stat) and sysctl.
  */
 public class MacGlobalMemory extends AbstractGlobalMemory {
 
@@ -43,58 +45,61 @@ public class MacGlobalMemory extends AbstractGlobalMemory {
 
     private static final Logger LOG = LoggerFactory.getLogger(MacGlobalMemory.class);
 
-    private transient XswUsage xswUsage = new XswUsage();
-    private long lastUpdateSwap = 0;
-
-    private transient VMStatistics vmStats = new VMStatistics();
-    private long lastUpdateAvail = 0;
-
-    public MacGlobalMemory() {
-        long memory = SysctlUtil.sysctl("hw.memsize", -1L);
-        if (memory >= 0) {
-            this.memTotal = memory;
-        }
-
-        LongByReference pPageSize = new LongByReference();
-        if (0 != SystemB.INSTANCE.host_page_size(SystemB.INSTANCE.mach_host_self(), pPageSize)) {
-            LOG.error("Failed to get host page size. Error code: {}", Native.getLastError());
-            return;
-        }
-        this.pageSize = pPageSize.getValue();
-    }
-
     /**
-     * Updates available memory no more often than every 100ms
+     * {@inheritDoc}
      */
     @Override
-    protected void updateMeminfo() {
-        long now = System.currentTimeMillis();
-        if (now - this.lastUpdateAvail > 100) {
-            if (0 != SystemB.INSTANCE.host_statistics(SystemB.INSTANCE.mach_host_self(), SystemB.HOST_VM_INFO,
-                    this.vmStats, new IntByReference(this.vmStats.size() / SystemB.INT_SIZE))) {
+    public long getAvailable() {
+        if (this.memAvailable < 0) {
+            VMStatistics vmStats = new VMStatistics();
+            if (0 != SystemB.INSTANCE.host_statistics(SystemB.INSTANCE.mach_host_self(), SystemB.HOST_VM_INFO, vmStats,
+                    new IntByReference(vmStats.size() / SystemB.INT_SIZE))) {
                 LOG.error("Failed to get host VM info. Error code: {}", Native.getLastError());
-                return;
+                return 0L;
             }
-            this.memAvailable = (this.vmStats.free_count + this.vmStats.inactive_count) * this.pageSize;
-            this.swapPagesIn = ParseUtil.unsignedIntToLong(this.vmStats.pageins);
-            this.swapPagesOut = ParseUtil.unsignedIntToLong(this.vmStats.pageouts);
-            this.lastUpdateAvail = now;
+            this.memAvailable = (vmStats.free_count + vmStats.inactive_count) * getPageSize();
         }
+        return this.memAvailable;
     }
 
     /**
-     * Updates swap file stats no more often than every 100ms
+     * {@inheritDoc}
      */
     @Override
-    protected void updateSwap() {
-        long now = System.currentTimeMillis();
-        if (now - this.lastUpdateSwap > 100) {
-            if (!SysctlUtil.sysctl("vm.swapusage", this.xswUsage)) {
-                return;
+    public long getTotal() {
+        if (this.memTotal < 0) {
+            long memory = SysctlUtil.sysctl("hw.memsize", -1L);
+            if (memory >= 0) {
+                this.memTotal = memory;
             }
-            this.swapUsed = this.xswUsage.xsu_used;
-            this.swapTotal = this.xswUsage.xsu_total;
-            this.lastUpdateSwap = now;
         }
+        return this.memTotal;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getPageSize() {
+        if (this.pageSize < 0) {
+            LongByReference pPageSize = new LongByReference();
+            if (0 != SystemB.INSTANCE.host_page_size(SystemB.INSTANCE.mach_host_self(), pPageSize)) {
+                LOG.error("Failed to get host page size. Error code: {}", Native.getLastError());
+                return 0L;
+            }
+            this.pageSize = pPageSize.getValue();
+        }
+        return this.pageSize;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public VirtualMemory getVirtualMemory() {
+        if (this.virtualMemory == null) {
+            this.virtualMemory = new MacVirtualMemory();
+        }
+        return this.virtualMemory;
     }
 }

@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.unix.solaris;
 
@@ -27,7 +32,6 @@ import java.util.Map;
 import oshi.hardware.UsbDevice;
 import oshi.hardware.common.AbstractUsbDevice;
 import oshi.util.ExecutingCommand;
-import oshi.util.MapUtil;
 import oshi.util.ParseUtil;
 
 public class SolarisUsbDevice extends AbstractUsbDevice {
@@ -68,7 +72,7 @@ public class SolarisUsbDevice extends AbstractUsbDevice {
                     device.getProductId(), device.getSerialNumber(), new SolarisUsbDevice[0]));
             addDevicesToList(deviceList, device.getConnectedDevices());
         }
-        return deviceList.toArray(new UsbDevice[deviceList.size()]);
+        return deviceList.toArray(new UsbDevice[0]);
     }
 
     private static void addDevicesToList(List<UsbDevice> deviceList, UsbDevice[] connectedDevices) {
@@ -110,7 +114,7 @@ public class SolarisUsbDevice extends AbstractUsbDevice {
                 // Add as child to appropriate parent
                 if (depth > indent) {
                     // Has a parent. Get parent and add this node to child list
-                    MapUtil.createNewListIfAbsent(hubMap, lastParent.get(depth - indent)).add(key);
+                    hubMap.computeIfAbsent(lastParent.get(depth - indent), x -> new ArrayList<>()).add(key);
                 } else {
                     // No parent, add to controllers list
                     usbControllers.add(key);
@@ -128,7 +132,7 @@ public class SolarisUsbDevice extends AbstractUsbDevice {
             } else if (line.startsWith("name:")) {
                 // Name is backup for model if model doesn't exist, so only
                 // put if key doesn't yet exist
-                MapUtil.putIfAbsent(nameMap, key, ParseUtil.getSingleQuoteStringValue(line));
+                nameMap.putIfAbsent(key, ParseUtil.getSingleQuoteStringValue(line));
             } else if (line.startsWith("vendor-id:")) {
                 // Format: vendor-id: 00008086
                 if (line.length() > 4) {
@@ -142,7 +146,7 @@ public class SolarisUsbDevice extends AbstractUsbDevice {
             } else if (line.startsWith("device_type:")) {
                 // Name is backup for model if model doesn't exist, so only
                 // put if key doesn't yet exist
-                MapUtil.putIfAbsent(deviceTypeMap, key, ParseUtil.getSingleQuoteStringValue(line));
+                deviceTypeMap.putIfAbsent(key, ParseUtil.getSingleQuoteStringValue(line));
             }
         }
 
@@ -150,11 +154,11 @@ public class SolarisUsbDevice extends AbstractUsbDevice {
         List<UsbDevice> controllerDevices = new ArrayList<>();
         for (String controller : usbControllers) {
             // Only do controllers that are USB device type
-            if ("usb".equals(MapUtil.getOrDefault(deviceTypeMap, controller, ""))) {
+            if ("usb".equals(deviceTypeMap.getOrDefault(controller, ""))) {
                 controllerDevices.add(getDeviceAndChildren(controller, "0000", "0000"));
             }
         }
-        return controllerDevices.toArray(new UsbDevice[controllerDevices.size()]);
+        return controllerDevices.toArray(new UsbDevice[0]);
     }
 
     /**
@@ -170,15 +174,15 @@ public class SolarisUsbDevice extends AbstractUsbDevice {
      * @return A SolarisUsbDevice corresponding to this device
      */
     private static SolarisUsbDevice getDeviceAndChildren(String devPath, String vid, String pid) {
-        String vendorId = MapUtil.getOrDefault(vendorIdMap, devPath, vid);
-        String productId = MapUtil.getOrDefault(productIdMap, devPath, pid);
-        List<String> childPaths = MapUtil.getOrDefault(hubMap, devPath, new ArrayList<String>());
+        String vendorId = vendorIdMap.getOrDefault(devPath, vid);
+        String productId = productIdMap.getOrDefault(devPath, pid);
+        List<String> childPaths = hubMap.getOrDefault(devPath, new ArrayList<String>());
         List<SolarisUsbDevice> usbDevices = new ArrayList<>();
         for (String path : childPaths) {
             usbDevices.add(getDeviceAndChildren(path, vendorId, productId));
         }
         Collections.sort(usbDevices);
-        return new SolarisUsbDevice(MapUtil.getOrDefault(nameMap, devPath, vendorId + ":" + productId), "", vendorId,
-                productId, "", usbDevices.toArray(new UsbDevice[usbDevices.size()]));
+        return new SolarisUsbDevice(nameMap.getOrDefault(devPath, vendorId + ":" + productId), "", vendorId, productId,
+                "", usbDevices.toArray(new UsbDevice[0]));
     }
 }

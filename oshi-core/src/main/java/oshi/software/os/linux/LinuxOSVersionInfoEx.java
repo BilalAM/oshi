@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.software.os.linux;
 
@@ -84,6 +89,14 @@ public class LinuxOSVersionInfoEx extends AbstractOSVersionInfoEx {
         // files, which show: "Distributor release x.x (Codename)"
         //
 
+        // Attempt to read /etc/system-release which has more details than
+        // os-release on (CentOS and Fedora)
+        if (readDistribRelease("/etc/system-release")) {
+            // If successful, we're done. this.family has been set and
+            // possibly the versionID and codeName
+            return;
+        }
+
         // Attempt to read /etc/os-release file.
         if (readOsRelease()) {
             // If successful, we're done. The version and possibly codeName
@@ -137,8 +150,8 @@ public class LinuxOSVersionInfoEx extends AbstractOSVersionInfoEx {
                     LOG.debug("os-release: {}", line);
                     // remove beginning and ending '"' characters, etc from
                     // VERSION="14.04.4 LTS, Trusty Tahr" (Ubuntu style)
-                    // or VERSION="17 (Beefy Miracle)" (os-release doc style)
-                    line = line.replace("VERSION=", "").replaceAll("^\"|\"$", "").trim();
+                    // or VERSION="17 (Beefy Miracle)" (os-release doc style
+                    line = ParseUtil.getDoubleQuoteStringValue(line).trim();
                     String[] split = line.split("[()]");
                     if (split.length <= 1) {
                         // If no parentheses, check for Ubuntu's comma format
@@ -154,7 +167,7 @@ public class LinuxOSVersionInfoEx extends AbstractOSVersionInfoEx {
                     LOG.debug("os-release: {}", line);
                     // remove beginning and ending '"' characters, etc from
                     // VERSION_ID="14.04"
-                    this.version = line.replace("VERSION_ID=", "").replaceAll("^\"|\"$", "").trim();
+                    this.version = ParseUtil.getDoubleQuoteStringValue(line).trim();
                 }
             }
         }
@@ -202,16 +215,16 @@ public class LinuxOSVersionInfoEx extends AbstractOSVersionInfoEx {
             for (String line : osRelease) {
                 if (line.startsWith("DISTRIB_DESCRIPTION=")) {
                     LOG.debug("lsb-release: {}", line);
-                    line = line.replace("DISTRIB_DESCRIPTION=", "").replaceAll("^\"|\"$", "").trim();
+                    line = ParseUtil.getDoubleQuoteStringValue(line).trim();
                     if (line.contains(" release ")) {
                         this.version = parseRelease(line, " release ");
                     }
                 } else if (line.startsWith("DISTRIB_RELEASE=") && this.version == null) {
                     LOG.debug("lsb-release: {}", line);
-                    this.version = line.replace("DISTRIB_RELEASE=", "").replaceAll("^\"|\"$", "").trim();
+                    this.version = ParseUtil.getDoubleQuoteStringValue(line).trim();
                 } else if (line.startsWith("DISTRIB_CODENAME=") && this.codeName == null) {
                     LOG.debug("lsb-release: {}", line);
-                    this.codeName = line.replace("DISTRIB_CODENAME=", "").replaceAll("^\"|\"$", "").trim();
+                    this.codeName = ParseUtil.getDoubleQuoteStringValue(line).trim();
                 }
             }
         }

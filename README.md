@@ -6,7 +6,7 @@
 [![codecov.io](https://codecov.io/github/oshi/oshi/coverage.svg?branch=master)](https://codecov.io/github/oshi/oshi?branch=master)
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/9332.svg)](https://scan.coverity.com/projects/dblock-oshi)
 [![Codacy Grade](https://api.codacy.com/project/badge/Grade/5370178ae91d4f56b43de2f26f7c5e7a)](https://www.codacy.com/app/widdis/oshi?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=oshi/oshi&amp;utm_campaign=Badge_Grade)
-[![Eclipse Public License](http://img.shields.io/badge/license-Eclipse-blue.svg)](https://www.eclipse.org/legal/epl-v10.html)
+[![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Join the chat at https://gitter.im/oshi/oshi](https://badges.gitter.im/oshi/oshi.svg)](https://gitter.im/oshi/oshi?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![SonarQube Bugs](https://sonarcloud.io/api/project_badges/measure?project=com.github.oshi%3Aoshi-parent&metric=bugs)](https://sonarcloud.io/dashboard?id=com.github.oshi%3Aoshi-parent)
 [![SonarQube Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=com.github.oshi%3Aoshi-parent&metric=vulnerabilities)](https://sonarcloud.io/dashboard?id=com.github.oshi%3Aoshi-parent)
@@ -15,15 +15,13 @@
 [![SonarQube Security](https://sonarcloud.io/api/project_badges/measure?project=com.github.oshi%3Aoshi-parent&metric=security_rating)](https://sonarcloud.io/dashboard?id=com.github.oshi%3Aoshi-parent)
 [![Code Quality: Java](https://img.shields.io/lgtm/grade/java/g/oshi/oshi.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/oshi/oshi/context:java)
 [![LGTM Stats](https://www.openhub.net/p/oshi/widgets/project_thin_badge.gif)](https://www.openhub.net/p/oshi?ref=github)
+[![first-timers-only](https://img.shields.io/badge/first--timers--only-friendly-blue.svg?style=flat-square)](https://www.firsttimersonly.com/)
 [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/dbwiddis)
 
 OSHI is a free JNA-based (native) Operating System and Hardware Information library for Java.
-It doesn't require the installation of any additional native libraries and aims to provide a 
+It does not require the installation of any additional native libraries and aims to provide a 
 cross-platform implementation to retrieve system information, such as OS version, processes, 
 memory & CPU usage, disks & partitions, devices, sensors, etc.
-
-OSHI provides lightweight Java objects to enable the core functionality in the `oshi-core` module,
-and extends that with flexible, configurable JSON-formatted data in the `oshi-json` module.
 
 Supported platforms 
 --------------------------- 
@@ -31,8 +29,9 @@ Windows • Linux • Mac OS X • Unix (Solaris, FreeBSD)
 
 Essentials
 ----------
+* [API](http://oshi.github.io/oshi/apidocs/) 
 * [Find OSHI on Maven Central](https://search.maven.org/search?q=com.github.oshi)
-* [FAQ](https://github.com/oshi/oshi/blob/master/FAQ.md) • [API](http://oshi.github.io/oshi/apidocs/) • [Site](http://oshi.github.io/oshi/) 
+* [FAQ](https://github.com/oshi/oshi/blob/master/FAQ.md)
 * [Upgrading from an earlier version?](https://github.com/oshi/oshi/blob/master/UPGRADING.md) 
 
 Supported features 
@@ -42,7 +41,7 @@ Supported features
 * Physical (core) and Logical (hyperthreaded) CPUs 
 * System and per-processor load % and tick counters
 * CPU uptime, processes, and threads
-* Process uptime, cpu, memory usage
+* Process uptime, CPU, memory usage
 * Physical and virtual memory used/available
 * Mounted filesystems (type, usable and total space)
 * Disk drives (model, serial, size) and partitions
@@ -56,21 +55,15 @@ Downloads
 ---------
 | Stable Release Version | Current Development Version | Dependencies |
 | ------------- | ------------- | ------------- |
-| [oshi-core-3.9.0](https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.github.oshi&a=oshi-core&v=3.9.0&e=jar)  | [oshi-core-3.10.0-SNAPSHOT](https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=com.github.oshi&a=oshi-core&v=3.10.0-SNAPSHOT&e=jar) | [JNA](https://github.com/java-native-access/jna) • [SLF4J](http://www.slf4j.org/) |
-| [oshi-json-3.9.0](https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.github.oshi&a=oshi-json&v=3.9.0&e=jar)   | [oshi-json-3.10.0-SNAPSHOT](https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=com.github.oshi&a=oshi-json&v=3.10.0-SNAPSHOT&e=jar)  | [javax.json](https://jsonp.java.net/download.html) |
+| [oshi-core-3.13.0](https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.github.oshi&a=oshi-core&v=3.13.0&e=jar)  | [oshi-core-4.0.0-SNAPSHOT](https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=com.github.oshi&a=oshi-core&v=4.0.0-SNAPSHOT&e=jar) | [JNA](https://github.com/java-native-access/jna) • [SLF4J](http://www.slf4j.org/) |
 
 Output
 -------------
-OSHI provides output directly via java methods or, for the `oshi-json` project, in JSON format for each of its interfaces.
+OSHI provides output directly via Java methods for each of its interfaces.  
 By periodically polling dynamic information (e.g., every second), users can calculate and track changes.
 
 The `main()` method of [SystemInfoTest](https://github.com/oshi/oshi/blob/master/oshi-core/src/test/java/oshi/SystemInfoTest.java) 
-provides sample code demonstrating the use of `oshi-core` interfaces to retrieve information and calculate additional metrics such as the below examples.
-
-For `oshi-json`, [SystemInfoTest](https://github.com/oshi/oshi/blob/master/oshi-json/src/test/java/oshi/SystemInfoTest.java) 
-enables the same capabilities via decorator classes. 
-See [oshi.json.properties](https://github.com/oshi/oshi/blob/master/oshi-json/src/test/resources/oshi.json.properties) 
-for a sample properties configuration file to customize JSON results.
+provides sample code demonstrating the use of `oshi-core` interfaces to retrieve information and calculate additional metrics shown in the examples below.
 
 General information about the operating system and computer system.
 ```
@@ -190,9 +183,9 @@ Where are we?
 -------------
 [OSHI originated](http://code.dblock.org/2010/06/23/introducing-oshi-operating-system-and-hardware-information-java.html) 
 as a platform-independent library that did not require additional software and had a license compatible with 
-both open source and commercial products. We've developed a strong core of features on major Operating Systems, 
-but we would love *you* to help by:
-* Testing!  Download and test the program on different software and hardware and help identify gaps that our limited development and testing may have missed.
+both open source and commercial products. We have developed a strong core of features on major Operating Systems, 
+but we would love for *you* to help by:
+* Testing!  Download and test the program on various software and hardware and help identify gaps that our limited development and testing may have missed.
 * Contributing ports.  Have an OS that's not covered? It's likely one of the existing ports can be slightly modified.
 * Contributing code.  See something that's not working right or could work better?  Help us fix it!  New contributors welcome.
 * Documenting implementation.  Our Wiki is blank.  Want to help new users follow in your footsteps?
@@ -207,16 +200,26 @@ Many thanks to the following companies for providing free support of Open Source
 
 Projects using OSHI
 -------------------
-* [Systeminfo Binding](https://github.com/openhab/openhab2-addons/tree/master/addons/binding/org.openhab.binding.systeminfo) for [OpenHAB](http://www.openhab.org/)
-* [OfficeConnector](https://confluence.atlassian.com/doc/edit-office-files-170494553.html) for [Atlassian Confluence](https://www.atlassian.com/software/confluence)
-* [Hawkular WildFly Agent](https://github.com/hawkular/hawkular-agent) for [Hawkular](http://www.hawkular.org/)
+* [CAS Server](https://apereo.github.io/cas)
+* [JPPF](https://jppf.org/)
+* [Apache Flink](https://flink.apache.org/)
+* [DeepLearning4J](https://deeplearning4j.org/)
+* [PSI Probe](https://github.com/psi-probe/psi-probe)
+* [openHAB Systeminfo Binding](https://github.com/openhab/openhab2-addons/tree/master/addons/binding/org.openhab.binding.systeminfo)
+* [Semux](https://www.semux.org/)
+* [Arthas](https://alibaba.github.io/arthas/en/)
+* [Hawkular Agent](https://github.com/hawkular/hawkular-agent)
+* [GeoServer](https://docs.geoserver.org/stable/en/user/community/status-monitoring/index.html)
 * [UniversalMediaServer](https://github.com/UniversalMediaServer/UniversalMediaServer)
 * [Dagr](https://github.com/fulcrumgenomics/dagr)
 * [sys-API](https://github.com/Krillsson/sys-API)
 * [NexCapMAT](http://www.nexess-solutions.com/fr/produits/application-nexcap-mat/)
 * [360Suite](https://360suite.io/)
+* [GoMint](https://gomint.io/)
 * [Stefan's OS](https://BotCompany.de/)
+* [Eclipse Passage](https://projects.eclipse.org/projects/technology.passage)
+* [Eclipse Orbit](https://projects.eclipse.org/projects/tools.orbit)
 
 License
 -------
-This project is licensed under the [Eclipse Public License 1.0](https://www.eclipse.org/legal/epl-v10.html).
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).

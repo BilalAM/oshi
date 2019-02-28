@@ -1,20 +1,25 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi;
 
@@ -40,8 +45,9 @@ import oshi.hardware.HardwareAbstractionLayer;
 import oshi.hardware.NetworkIF;
 import oshi.hardware.PowerSource;
 import oshi.hardware.Sensors;
-import oshi.hardware.UsbDevice;
 import oshi.hardware.SoundCard;
+import oshi.hardware.UsbDevice;
+import oshi.hardware.VirtualMemory;
 import oshi.software.os.FileSystem;
 import oshi.software.os.NetworkParams;
 import oshi.software.os.OSFileStore;
@@ -165,8 +171,9 @@ public class SystemInfoTest {
     private static void printMemory(GlobalMemory memory) {
         System.out.println("Memory: " + FormatUtil.formatBytes(memory.getAvailable()) + "/"
                 + FormatUtil.formatBytes(memory.getTotal()));
-        System.out.println("Swap used: " + FormatUtil.formatBytes(memory.getSwapUsed()) + "/"
-                + FormatUtil.formatBytes(memory.getSwapTotal()));
+        VirtualMemory vm = memory.getVirtualMemory();
+        System.out.println("Swap used: " + FormatUtil.formatBytes(vm.getSwapUsed()) + "/"
+                + FormatUtil.formatBytes(vm.getSwapTotal()));
     }
 
     private static void printCpu(CentralProcessor processor) {
@@ -174,9 +181,11 @@ public class SystemInfoTest {
         System.out.println(
                 "Context Switches/Interrupts: " + processor.getContextSwitches() + " / " + processor.getInterrupts());
         long[] prevTicks = processor.getSystemCpuLoadTicks();
+        long[][] prevProcTicks = processor.getProcessorCpuLoadTicks();
         System.out.println("CPU, IOWait, and IRQ ticks @ 0 sec:" + Arrays.toString(prevTicks));
         // Wait a second...
         Util.sleep(1000);
+        processor.updateAttributes();
         long[] ticks = processor.getSystemCpuLoadTicks();
         System.out.println("CPU, IOWait, and IRQ ticks @ 1 sec:" + Arrays.toString(ticks));
         long user = ticks[TickType.USER.getIndex()] - prevTicks[TickType.USER.getIndex()];
@@ -193,7 +202,8 @@ public class SystemInfoTest {
                 "User: %.1f%% Nice: %.1f%% System: %.1f%% Idle: %.1f%% IOwait: %.1f%% IRQ: %.1f%% SoftIRQ: %.1f%% Steal: %.1f%%%n",
                 100d * user / totalCpu, 100d * nice / totalCpu, 100d * sys / totalCpu, 100d * idle / totalCpu,
                 100d * iowait / totalCpu, 100d * irq / totalCpu, 100d * softirq / totalCpu, 100d * steal / totalCpu);
-        System.out.format("CPU load: %.1f%% (counting ticks)%n", processor.getSystemCpuLoadBetweenTicks() * 100);
+        System.out.format("CPU load: %.1f%% (counting ticks)%n",
+                processor.getSystemCpuLoadBetweenTicks(prevTicks) * 100);
         System.out.format("CPU load: %.1f%% (OS MXBean)%n", processor.getSystemCpuLoad() * 100);
         double[] loadAverage = processor.getSystemLoadAverage(3);
         System.out.println("CPU load averages:" + (loadAverage[0] < 0 ? " N/A" : String.format(" %.2f", loadAverage[0]))
@@ -201,11 +211,30 @@ public class SystemInfoTest {
                 + (loadAverage[2] < 0 ? " N/A" : String.format(" %.2f", loadAverage[2])));
         // per core CPU
         StringBuilder procCpu = new StringBuilder("CPU load per processor:");
-        double[] load = processor.getProcessorCpuLoadBetweenTicks();
+        double[] load = processor.getProcessorCpuLoadBetweenTicks(prevProcTicks);
         for (double avg : load) {
             procCpu.append(String.format(" %.1f%%", avg * 100));
         }
         System.out.println(procCpu.toString());
+        long freq = processor.getVendorFreq();
+        if (freq > 0) {
+            System.out.println("Vendor Frequency: " + FormatUtil.formatHertz(freq));
+        }
+        freq = processor.getMaxFreq();
+        if (freq > 0) {
+            System.out.println("Max Frequency: " + FormatUtil.formatHertz(freq));
+        }
+        long[] freqs = processor.getCurrentFreq();
+        if (freqs[0] > 0) {
+            StringBuilder sb = new StringBuilder("Current Frequencies: ");
+            for (int i = 0; i < freqs.length; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(FormatUtil.formatHertz(freqs[i]));
+            }
+            System.out.println(sb.toString());
+        }
     }
 
     private static void printProcesses(OperatingSystem os, GlobalMemory memory) {
@@ -286,11 +315,12 @@ public class SystemInfoTest {
             long usable = fs.getUsableSpace();
             long total = fs.getTotalSpace();
             System.out.format(
-                    " %s (%s) [%s] %s of %s free (%.1f%%) is %s "
+                    " %s (%s) [%s] %s of %s free (%.1f%%), %s of %s files free (%.1f%%) is %s "
                             + (fs.getLogicalVolume() != null && fs.getLogicalVolume().length() > 0 ? "[%s]" : "%s")
                             + " and is mounted at %s%n",
                     fs.getName(), fs.getDescription().isEmpty() ? "file system" : fs.getDescription(), fs.getType(),
                     FormatUtil.formatBytes(usable), FormatUtil.formatBytes(fs.getTotalSpace()), 100d * usable / total,
+                    fs.getFreeInodes(), fs.getTotalInodes(), 100d * fs.getFreeInodes() / fs.getTotalInodes(),
                     fs.getVolume(), fs.getLogicalVolume(), fs.getMount());
         }
     }

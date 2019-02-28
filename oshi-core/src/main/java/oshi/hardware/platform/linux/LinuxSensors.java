@@ -1,25 +1,27 @@
 /**
- * Oshi (https://github.com/oshi/oshi)
+ * OSHI (https://github.com/oshi/oshi)
  *
- * Copyright (c) 2010 - 2018 The Oshi Project Team
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Maintainers:
- * dblock[at]dblock[dot]org
- * widdis[at]gmail[dot]com
- * enrico.bianchi[at]gmail[dot]com
- *
- * Contributors:
+ * Copyright (c) 2010 - 2019 The OSHI Project Team:
  * https://github.com/oshi/oshi/graphs/contributors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 package oshi.hardware.platform.linux;
-
-import oshi.hardware.Sensors;
-import oshi.util.FileUtil;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -28,6 +30,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import oshi.hardware.Sensors;
+import oshi.util.FileUtil;
 
 public class LinuxSensors implements Sensors {
 
@@ -65,7 +70,7 @@ public class LinuxSensors implements Sensors {
         // Iterate over all thermal_zone* directories and look for sensor files
         // if no temperature sensor is found
         // e.g. /sys/class/thermal/thermal_zone0/temp
-        if (!sensorsMap.containsKey(TEMP)) {
+        if (!this.sensorsMap.containsKey(TEMP)) {
             getSensorFilesFromPath(THERMAL_ZONE, TEMP, new FileFilter() {
                 // Find any temp files in that path
                 @Override
@@ -93,7 +98,7 @@ public class LinuxSensors implements Sensors {
             File dir = new File(path);
             File[] matchingFiles = dir.listFiles(sensorFileFilter);
             if (matchingFiles != null && matchingFiles.length > 0) {
-                sensorsMap.put(sensor, String.format("%s/%s", path, sensor));
+                this.sensorsMap.put(sensor, String.format("%s/%s", path, sensor));
             }
             i++;
         }
@@ -105,11 +110,11 @@ public class LinuxSensors implements Sensors {
     @Override
     public double getCpuTemperature() {
         long millidegrees = 0;
-        if (!sensorsMap.containsKey(TEMP)) {
+        if (!this.sensorsMap.containsKey(TEMP)) {
             return 0d;
         }
-        String hwmon = sensorsMap.get(TEMP);
-        if(hwmon.contains("hwmon")) {
+        String hwmon = this.sensorsMap.get(TEMP);
+        if (hwmon.contains("hwmon")) {
             // First attempt should be CPU temperature at index 1, if available
             millidegrees = FileUtil.getLongFromFile(String.format("%s1_input", hwmon));
             // Should return a single line of millidegrees Celsius
@@ -130,8 +135,7 @@ public class LinuxSensors implements Sensors {
             if (count > 0) {
                 return sum / (count * 1000d);
             }
-        }
-        else if(hwmon.contains("thermal_zone")) {
+        } else if (hwmon.contains("thermal_zone")) {
             // If temp2..temp6_input doesn't exist, try thermal_zone0
             millidegrees = FileUtil.getLongFromFile(hwmon);
             // Should return a single line of millidegrees Celsius
@@ -147,8 +151,8 @@ public class LinuxSensors implements Sensors {
      */
     @Override
     public int[] getFanSpeeds() {
-        if (sensorsMap.containsKey(FAN)) {
-            String hwmon = sensorsMap.get(FAN);
+        if (this.sensorsMap.containsKey(FAN)) {
+            String hwmon = this.sensorsMap.get(FAN);
             List<Integer> speeds = new ArrayList<>();
             int fan = 1;
             for (;;) {
@@ -176,8 +180,8 @@ public class LinuxSensors implements Sensors {
      */
     @Override
     public double getCpuVoltage() {
-        if (sensorsMap.containsKey(VOLTAGE)) {
-            String hwmon = sensorsMap.get(VOLTAGE);
+        if (this.sensorsMap.containsKey(VOLTAGE)) {
+            String hwmon = this.sensorsMap.get(VOLTAGE);
             // Should return a single line of millivolt
             return FileUtil.getIntFromFile(String.format("%s1_input", hwmon)) / 1000d;
         }
