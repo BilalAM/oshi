@@ -32,11 +32,16 @@ import org.slf4j.LoggerFactory;
 
 import com.sun.jna.ptr.PointerByReference; // NOSONAR
 
-import oshi.jna.platform.linux.Libc;
+import oshi.jna.platform.linux.LinuxLibc;
 import oshi.software.common.AbstractNetworkParams;
 import oshi.util.ExecutingCommand;
 import oshi.util.ParseUtil;
 
+/**
+ * <p>
+ * LinuxNetworkParams class.
+ * </p>
+ */
 public class LinuxNetworkParams extends AbstractNetworkParams {
 
     private static final long serialVersionUID = 1L;
@@ -46,13 +51,11 @@ public class LinuxNetworkParams extends AbstractNetworkParams {
     private static final String IPV4_DEFAULT_DEST = "0.0.0.0"; // NOSONAR
     private static final String IPV6_DEFAULT_DEST = "::/0";
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getDomainName() {
-        Libc.Addrinfo hint = new Libc.Addrinfo();
-        hint.ai_flags = Libc.AI_CANONNAME;
+        LinuxLibc.Addrinfo hint = new LinuxLibc.Addrinfo();
+        hint.ai_flags = LinuxLibc.AI_CANONNAME;
         String hostname = "";
         try {
             hostname = InetAddress.getLocalHost().getHostName();
@@ -61,22 +64,20 @@ public class LinuxNetworkParams extends AbstractNetworkParams {
             return "";
         }
         PointerByReference ptr = new PointerByReference();
-        int res = Libc.INSTANCE.getaddrinfo(hostname, null, hint, ptr);
+        int res = LinuxLibc.INSTANCE.getaddrinfo(hostname, null, hint, ptr);
         if (res > 0) {
             if (LOG.isErrorEnabled()) {
-                LOG.error("Failed getaddrinfo(): {}", Libc.INSTANCE.gai_strerror(res));
+                LOG.error("Failed getaddrinfo(): {}", LinuxLibc.INSTANCE.gai_strerror(res));
             }
             return "";
         }
-        Libc.Addrinfo info = new Libc.Addrinfo(ptr.getValue());
+        LinuxLibc.Addrinfo info = new LinuxLibc.Addrinfo(ptr.getValue());
         String canonname = info.ai_canonname.trim();
-        Libc.INSTANCE.freeaddrinfo(ptr.getValue());
+        LinuxLibc.INSTANCE.freeaddrinfo(ptr.getValue());
         return canonname;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getIpv4DefaultGateway() {
         List<String> routes = ExecutingCommand.runNative("route -A inet -n");
@@ -101,9 +102,7 @@ public class LinuxNetworkParams extends AbstractNetworkParams {
         return gateway;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getIpv6DefaultGateway() {
         List<String> routes = ExecutingCommand.runNative("route -A inet6 -n");

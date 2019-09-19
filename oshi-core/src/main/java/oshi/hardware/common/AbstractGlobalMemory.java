@@ -24,58 +24,20 @@
 package oshi.hardware.common;
 
 import oshi.hardware.GlobalMemory;
-import oshi.hardware.VirtualMemory;
+import oshi.util.FormatUtil;
 
 /**
  * Memory info.
  */
 public abstract class AbstractGlobalMemory implements GlobalMemory {
 
-    private static final long serialVersionUID = 1L;
-
-    protected long memTotal = -1L;
-    protected long memAvailable = -1L;
-    protected long pageSize = -1L;
-    protected VirtualMemory virtualMemory;
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public long getAvailable() {
-        if (this.memAvailable < 0) {
-            updateAttributes();
-        }
-        return this.memAvailable;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getTotal() {
-        if (this.memTotal < 0) {
-            updateAttributes();
-        }
-        return this.memTotal;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getPageSize() {
-        if (this.pageSize < 0) {
-            updateAttributes();
-        }
-        return this.pageSize;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void updateAttributes() {
-        this.memAvailable = -1;
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Available: ");
+        sb.append(FormatUtil.formatBytes(getAvailable()));
+        sb.append("/");
+        sb.append(FormatUtil.formatBytes(getTotal()));
+        return sb.toString();
     }
 }

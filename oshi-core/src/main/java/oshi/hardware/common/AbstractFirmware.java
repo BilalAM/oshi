@@ -31,107 +31,35 @@ import oshi.util.Constants;
  */
 public abstract class AbstractFirmware implements Firmware {
 
-    private static final long serialVersionUID = 1L;
-
-    protected String manufacturer;
-    protected String name;
-    protected String description;
-    protected String version;
-    protected String releaseDate;
-
-    /**
-     * {@inheritDoc}
+    /*
+     * Multiple classes don't have these, set defaults here
      */
-    @Override
-    public String getManufacturer() {
-        if (this.manufacturer == null) {
-            this.manufacturer = Constants.UNKNOWN;
-        }
-        return this.manufacturer;
-    }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getName() {
-        if (this.name == null) {
-            this.name = Constants.UNKNOWN;
-        }
-        return this.name;
+        return Constants.UNKNOWN;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getDescription() {
-        if (this.description == null) {
-            this.description = Constants.UNKNOWN;
-        }
-        return this.description;
+        return Constants.UNKNOWN;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String getVersion() {
-        if (this.version == null) {
-            this.version = Constants.UNKNOWN;
-        }
-        return this.version;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getReleaseDate() {
-        if (this.releaseDate == null) {
-            this.releaseDate = Constants.UNKNOWN;
-        }
-        return this.releaseDate;
+        return Constants.UNKNOWN;
     }
 
-    /**
-     * @param manufacturer
-     *            The manufacturer to set.
-     */
-    public void setManufacturer(String manufacturer) {
-        this.manufacturer = manufacturer;
-    }
-
-    /**
-     * @param name
-     *            The name to set.
-     */
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    /**
-     * @param description
-     *            The description to set.
-     */
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    /**
-     * @param version
-     *            The version to set.
-     */
-    public void setVersion(String version) {
-        this.version = version;
-    }
-
-    /**
-     * @param releaseDate
-     *            The releaseDate to set.
-     */
-    public void setReleaseDate(String releaseDate) {
-        this.releaseDate = releaseDate;
+    /** {@inheritDoc} */
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("manufacturer=").append(getManufacturer()).append(", ");
+        sb.append("name=").append(getName()).append(", ");
+        sb.append("description=").append(getDescription()).append(", ");
+        sb.append("version=").append(getVersion()).append(", ");
+        sb.append("release date=").append(getReleaseDate() == null ? "unknown" : getReleaseDate());
+        return sb.toString();
     }
 
 }

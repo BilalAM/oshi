@@ -26,6 +26,7 @@ package oshi.software.common;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -45,22 +46,18 @@ public abstract class AbstractNetworkParams implements NetworkParams {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractNetworkParams.class);
     private static final String NAMESERVER = "nameserver";
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getDomainName() {
         try {
             return InetAddress.getLocalHost().getCanonicalHostName();
         } catch (UnknownHostException e) {
-            LOG.error("Unknown host exception when getting address of local host: " + e);
+            LOG.error("Unknown host exception when getting address of local host: {}", e);
             return "";
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getHostName() {
         try {
@@ -72,14 +69,12 @@ public abstract class AbstractNetworkParams implements NetworkParams {
                 return hn.substring(0, dot);
             }
         } catch (UnknownHostException e) {
-            LOG.error("Unknown host exception when getting address of local host: " + e);
+            LOG.error("Unknown host exception when getting address of local host: {}", e);
             return "";
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String[] getDnsServers() {
         List<String> resolv = FileUtil.readFile("/etc/resolv.conf");
@@ -119,5 +114,13 @@ public abstract class AbstractNetworkParams implements NetworkParams {
             }
         }
         return "";
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public String toString(){
+        return String.format("Host name: %s, Domain name: %s, DNS servers: %s, IPv4 Gateway: %s, IPv6 Gateway: %s"
+                ,this.getHostName(),this.getDomainName(),Arrays.toString(this.getDnsServers()),this.getIpv4DefaultGateway(),this.getIpv6DefaultGateway());
+
     }
 }

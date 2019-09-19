@@ -44,15 +44,23 @@ import oshi.hardware.common.AbstractDisplay;
 
 /**
  * A Display
- *
- * @author widdis[at]gmail[dot]com
  */
 public class WindowsDisplay extends AbstractDisplay {
 
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOG = LoggerFactory.getLogger(WindowsDisplay.class);
+    
+    private static final Guid.GUID GUID_DEVINTERFACE_MONITOR = new Guid.GUID("E6F07B5F-EE97-4a90-B076-33F57BF4EAA7");
 
+    /**
+     * <p>
+     * Constructor for WindowsDisplay.
+     * </p>
+     *
+     * @param edid
+     *            an array of {@link byte} objects.
+     */
     public WindowsDisplay(byte[] edid) {
         super(edid);
         LOG.debug("Initialized WindowsDisplay");
@@ -66,8 +74,7 @@ public class WindowsDisplay extends AbstractDisplay {
     public static Display[] getDisplays() {
         List<Display> displays = new ArrayList<>();
 
-        Guid.GUID monitorGuid = new Guid.GUID("E6F07B5F-EE97-4a90-B076-33F57BF4EAA7");
-        WinNT.HANDLE hDevInfo = SetupApi.INSTANCE.SetupDiGetClassDevs(monitorGuid, null, null,
+        WinNT.HANDLE hDevInfo = SetupApi.INSTANCE.SetupDiGetClassDevs(GUID_DEVINTERFACE_MONITOR, null, null,
                 SetupApi.DIGCF_PRESENT | SetupApi.DIGCF_DEVICEINTERFACE);
         if (!hDevInfo.equals(WinNT.INVALID_HANDLE_VALUE)) {
             SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new SetupApi.SP_DEVICE_INTERFACE_DATA();
@@ -95,6 +102,7 @@ public class WindowsDisplay extends AbstractDisplay {
                 }
                 Advapi32.INSTANCE.RegCloseKey(key);
             }
+            SetupApi.INSTANCE.SetupDiDestroyDeviceInfoList(hDevInfo);
         }
         return displays.toArray(new Display[0]);
     }

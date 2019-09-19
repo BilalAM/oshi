@@ -35,101 +35,68 @@ import oshi.hardware.SoundCard;
 import oshi.hardware.UsbDevice;
 import oshi.hardware.common.AbstractHardwareAbstractionLayer;
 
+/**
+ * <p>
+ * MacHardwareAbstractionLayer class.
+ * </p>
+ */
 public class MacHardwareAbstractionLayer extends AbstractHardwareAbstractionLayer {
 
-    private static final long serialVersionUID = 1L;
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public ComputerSystem getComputerSystem() {
-        if (this.computerSystem == null) {
-            this.computerSystem = new MacComputerSystem();
-        }
-        return this.computerSystem;
+    public ComputerSystem createComputerSystem() {
+        return new MacComputerSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public CentralProcessor getProcessor() {
-        if (this.processor == null) {
-            this.processor = new MacCentralProcessor();
-        }
-        return this.processor;
+    public GlobalMemory createMemory() {
+        return new MacGlobalMemory();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public GlobalMemory getMemory() {
-        if (this.memory == null) {
-            this.memory = new MacGlobalMemory();
-        }
-        return this.memory;
+    public CentralProcessor createProcessor() {
+        return new MacCentralProcessor();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public Sensors createSensors() {
+        return new MacSensors();
+    }
+
+    /** {@inheritDoc} */
     @Override
     public PowerSource[] getPowerSources() {
         return MacPowerSource.getPowerSources();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public HWDiskStore[] getDiskStores() {
         return new MacDisks().getDisks();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public Display[] getDisplays() {
         return MacDisplay.getDisplays();
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Sensors getSensors() {
-        if (this.sensors == null) {
-            this.sensors = new MacSensors();
-        }
-        return this.sensors;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NetworkIF[] getNetworkIFs() {
         return new MacNetworks().getNetworks();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public UsbDevice[] getUsbDevices(boolean tree) {
         return MacUsbDevice.getUsbDevices(tree);
     }
 
-    /**
-     * Instantiates an array of {@link SoundCard} objects, representing the
-     * Sound cards.
-     *
-     * @return An array of SoundCard objects or an empty array if none are
-     *         present.
-     */
+    /** {@inheritDoc} */
     @Override
     public SoundCard[] getSoundCards() {
         return MacSoundCard.getSoundCards().toArray(new SoundCard[0]);

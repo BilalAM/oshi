@@ -27,7 +27,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import oshi.jna.platform.linux.Libc;
+import com.sun.jna.Memory; //NOSONAR squid:S1191
+import com.sun.jna.Pointer;
+import com.sun.jna.ptr.IntByReference;
+
+import oshi.jna.platform.unix.CLibrary.Timeval;
+import oshi.jna.platform.unix.freebsd.FreeBsdLibc;
 import oshi.software.common.AbstractOperatingSystem;
 import oshi.software.os.FileSystem;
 import oshi.software.os.NetworkParams;
@@ -38,14 +43,35 @@ import oshi.util.ParseUtil;
 import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
 
 /**
- * Linux is a family of free operating systems most commonly used on personal
- * computers.
- *
- * @author widdis[at]gmail[dot]com
+ * <p>
+ * FreeBsdOperatingSystem class.
+ * </p>
  */
 public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
     private static final long serialVersionUID = 1L;
 
+    private static final long BOOTTIME;
+    static {
+        Timeval tv = new Timeval();
+        if (!BsdSysctlUtil.sysctl("kern.boottime", tv) || tv.tv_sec == 0) {
+            // Usually this works. If it doesn't, fall back to text parsing.
+            // Boot time will be the first consecutive string of digits.
+            BOOTTIME = ParseUtil.parseLongOrDefault(
+                    ExecutingCommand.getFirstAnswer("sysctl -n kern.boottime").split(",")[0].replaceAll("\\D", ""),
+                    System.currentTimeMillis() / 1000);
+        } else {
+            // tv now points to a 128-bit timeval structure for boot time.
+            // First 8 bytes are seconds, second 8 bytes are microseconds
+            // (we ignore)
+            BOOTTIME = tv.tv_sec;
+        }
+    }
+
+    /**
+     * <p>
+     * Constructor for FreeBsdOperatingSystem.
+     * </p>
+     */
     public FreeBsdOperatingSystem() {
         this.manufacturer = "Unix/BSD";
         this.family = BsdSysctlUtil.sysctl("kern.ostype", "FreeBSD");
@@ -59,17 +85,13 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public FileSystem getFileSystem() {
         return new FreeBsdFileSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getProcesses(int limit, ProcessSort sort, boolean slowFields) {
         List<OSProcess> procs = getProcessListFromPS(
@@ -79,9 +101,7 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
         return sorted.toArray(new OSProcess[0]);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess getProcess(int pid) {
         return getProcess(pid, true);
@@ -97,9 +117,7 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
         return procs.get(0);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getChildProcesses(int parentPid, int limit, ProcessSort sort) {
         List<OSProcess> procs = getProcessListFromPS(
@@ -126,7 +144,7 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
                 continue;
             }
             long now = System.currentTimeMillis();
-            OSProcess fproc = new OSProcess();
+            OSProcess fproc = new OSProcess(this);
             switch (split[0].charAt(0)) {
             case 'R':
                 fproc.setState(OSProcess.State.RUNNING);
@@ -171,27 +189,42 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
             fproc.setName(fproc.getPath().substring(fproc.getPath().lastIndexOf('/') + 1));
             fproc.setCommandLine(split[15]);
             fproc.setCurrentWorkingDirectory(cwdMap.getOrDefault(fproc.getProcessID(), ""));
-            // gets the open files count -- slow
+
             if (slowFields) {
                 List<String> openFilesList = ExecutingCommand.runNative(String.format("lsof -p %d", pid));
                 fproc.setOpenFiles(openFilesList.size() - 1L);
+
+                // Get process abi vector
+                int[] mib = new int[4];
+                mib[0] = 1; // CTL_KERN
+                mib[1] = 14; // KERN_PROC
+                mib[2] = 9; // KERN_PROC_SV_NAME
+                mib[3] = pid;
+                // Allocate memory for arguments
+                Pointer abi = new Memory(32);
+                IntByReference size = new IntByReference(32);
+                // Fetch abi vector
+                if (0 == FreeBsdLibc.INSTANCE.sysctl(mib, mib.length, abi, size, null, 0)) {
+                    String elf = abi.getString(0);
+                    if (elf.contains("ELF32")) {
+                        fproc.setBitness(32);
+                    } else if (elf.contains("ELF64")) {
+                        fproc.setBitness(64);
+                    }
+                }
             }
             procs.add(fproc);
         }
         return procs;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessId() {
-        return Libc.INSTANCE.getpid();
+        return FreeBsdLibc.INSTANCE.getpid();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessCount() {
         List<String> procList = ExecutingCommand.runNative("ps -axo pid");
@@ -202,9 +235,7 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
         return 0;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getThreadCount() {
         int threads = 0;
@@ -214,9 +245,19 @@ public class FreeBsdOperatingSystem extends AbstractOperatingSystem {
         return threads;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemUptime() {
+        return System.currentTimeMillis() / 1000 - BOOTTIME;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemBootTime() {
+        return BOOTTIME;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public NetworkParams getNetworkParams() {
         return new FreeBsdNetworkParams();

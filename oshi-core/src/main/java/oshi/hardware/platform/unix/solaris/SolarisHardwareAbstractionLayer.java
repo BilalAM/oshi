@@ -35,94 +35,68 @@ import oshi.hardware.SoundCard;
 import oshi.hardware.UsbDevice;
 import oshi.hardware.common.AbstractHardwareAbstractionLayer;
 
+/**
+ * <p>
+ * SolarisHardwareAbstractionLayer class.
+ * </p>
+ */
 public class SolarisHardwareAbstractionLayer extends AbstractHardwareAbstractionLayer {
 
-    private static final long serialVersionUID = 1L;
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public ComputerSystem getComputerSystem() {
-        if (this.computerSystem == null) {
-            this.computerSystem = new SolarisComputerSystem();
-        }
-        return this.computerSystem;
+    public ComputerSystem createComputerSystem() {
+        return new SolarisComputerSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public GlobalMemory getMemory() {
-        if (this.memory == null) {
-            this.memory = new SolarisGlobalMemory();
-        }
-        return this.memory;
+    public GlobalMemory createMemory() {
+        return new SolarisGlobalMemory();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public CentralProcessor getProcessor() {
-        if (this.processor == null) {
-            this.processor = new SolarisCentralProcessor();
-        }
-        return this.processor;
+    public CentralProcessor createProcessor() {
+        return new SolarisCentralProcessor();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public Sensors createSensors() {
+        return new SolarisSensors();
+    }
+
+    /** {@inheritDoc} */
     @Override
     public PowerSource[] getPowerSources() {
         return SolarisPowerSource.getPowerSources();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public HWDiskStore[] getDiskStores() {
         return new SolarisDisks().getDisks();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public Display[] getDisplays() {
         return SolarisDisplay.getDisplays();
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Sensors getSensors() {
-        if (this.sensors == null) {
-            this.sensors = new SolarisSensors();
-        }
-        return this.sensors;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NetworkIF[] getNetworkIFs() {
         return new SolarisNetworks().getNetworks();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public UsbDevice[] getUsbDevices(boolean tree) {
         return SolarisUsbDevice.getUsbDevices(tree);
     }
 
+    /** {@inheritDoc} */
     @Override
     public SoundCard[] getSoundCards() {
         return SolarisSoundCard.getSoundCards().toArray(new SoundCard[0]);

@@ -39,19 +39,17 @@ import oshi.util.ParseUtil;
 import oshi.util.platform.unix.solaris.KstatUtil;
 
 /**
- * The Solaris File System contains {@link OSFileStore}s which are a storage
- * pool, device, partition, volume, concrete file system or other implementation
- * specific means of file storage. In Solaris, these are found in the
- * /proc/mount filesystem, excluding temporary and kernel mounts.
- *
- * @author widdis[at]gmail[dot]com
+ * The Solaris File System contains {@link oshi.software.os.OSFileStore}s which
+ * are a storage pool, device, partition, volume, concrete file system or other
+ * implementation specific means of file storage. In Solaris, these are found in
+ * the /proc/mount filesystem, excluding temporary and kernel mounts.
  */
 public class SolarisFileSystem implements FileSystem {
 
     private static final long serialVersionUID = 1L;
 
     // Solaris defines a set of virtual file systems
-    private final List<String> pseudofs = Arrays.asList(new String[] { //
+    private final List<String> pseudofs = Arrays.asList(//
             "proc", // Proc file system
             "devfs", // Dev temporary file system
             "ctfs", // Contract file system
@@ -63,10 +61,10 @@ public class SolarisFileSystem implements FileSystem {
             // "tmpfs", // Temporary file system
             // NOTE: tmpfs is evaluated apart, because Solaris uses it for
             // RAMdisks
-    });
+    );
 
     // System path mounted as tmpfs
-    private final List<String> tmpfsPaths = Arrays.asList(new String[] { "/system", "/tmp", "/dev/fd" });
+    private final List<String> tmpfsPaths = Arrays.asList("/system", "/tmp", "/dev/fd");
 
     /**
      * Checks if file path equals or starts with an element in the given list
@@ -75,8 +73,8 @@ public class SolarisFileSystem implements FileSystem {
      *            A list of path prefixes
      * @param charSeq
      *            a path to check
-     * @return true if the charSeq exactly equals, or starts with the directory
-     *         in aList
+     * @return true if the charSeq exactly equals, or starts with the directory in
+     *         aList
      */
     private boolean listElementStartsWith(List<String> aList, String charSeq) {
         for (String match : aList) {
@@ -88,14 +86,18 @@ public class SolarisFileSystem implements FileSystem {
     }
 
     /**
-     * Gets File System Information.
+     * {@inheritDoc}
      *
-     * @return An array of {@link OSFileStore} objects representing mounted
-     *         volumes. May return disconnected volumes with
-     *         {@link OSFileStore#getTotalSpace()} = 0.
+     * Gets File System Information.
      */
     @Override
     public OSFileStore[] getFileStores() {
+        List<OSFileStore> fsList = getFileStoreMatching(null);
+
+        return fsList.toArray(new OSFileStore[0]);
+    }
+
+    private List<OSFileStore> getFileStoreMatching(String nameToMatch) {
         List<OSFileStore> fsList = new ArrayList<>();
 
         // Get inode usage data
@@ -151,8 +153,14 @@ public class SolarisFileSystem implements FileSystem {
             if (name.isEmpty()) {
                 name = volume.substring(volume.lastIndexOf('/') + 1);
             }
-            long totalSpace = new File(path).getTotalSpace();
-            long usableSpace = new File(path).getUsableSpace();
+
+            if (nameToMatch != null && !nameToMatch.equals(name)) {
+                continue;
+            }
+            File f = new File(path);
+            long totalSpace = f.getTotalSpace();
+            long usableSpace = f.getUsableSpace();
+            long freeSpace = f.getFreeSpace();
 
             String description;
             if (volume.startsWith("/dev") || path.equals("/")) {
@@ -173,15 +181,17 @@ public class SolarisFileSystem implements FileSystem {
             osStore.setDescription(description);
             osStore.setType(type);
             osStore.setUUID(""); // No UUID info on Solaris
+            osStore.setFreeSpace(freeSpace);
             osStore.setUsableSpace(usableSpace);
             osStore.setTotalSpace(totalSpace);
             osStore.setFreeInodes(inodeFreeMap.containsKey(path) ? inodeFreeMap.get(path) : 0L);
             osStore.setTotalInodes(inodeTotalMap.containsKey(path) ? inodeTotalMap.get(path) : 0L);
             fsList.add(osStore);
         }
-        return fsList.toArray(new OSFileStore[0]);
+        return fsList;
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getOpenFileDescriptors() {
         Kstat ksp = KstatUtil.kstatLookup(null, -1, "file_cache");
@@ -192,6 +202,7 @@ public class SolarisFileSystem implements FileSystem {
         return 0L;
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getMaxFileDescriptors() {
         Kstat ksp = KstatUtil.kstatLookup(null, -1, "file_cache");
@@ -200,5 +211,32 @@ public class SolarisFileSystem implements FileSystem {
             return KstatUtil.kstatDataLookupLong(ksp, "buf_max");
         }
         return 0L;
+    }
+
+    /**
+     * <p>
+     * updateFileStoreStats.
+     * </p>
+     *
+     * @param osFileStore
+     *            a {@link oshi.software.os.OSFileStore} object.
+     * @return a boolean.
+     */
+    public static boolean updateFileStoreStats(OSFileStore osFileStore) {
+        for (OSFileStore fileStore : new SolarisFileSystem().getFileStoreMatching(osFileStore.getName())) {
+            if (osFileStore.getVolume().equals(fileStore.getVolume())
+                    && osFileStore.getMount().equals(fileStore.getMount())) {
+                osFileStore.setLogicalVolume(fileStore.getLogicalVolume());
+                osFileStore.setDescription(fileStore.getDescription());
+                osFileStore.setType(fileStore.getType());
+                osFileStore.setFreeSpace(fileStore.getFreeSpace());
+                osFileStore.setUsableSpace(fileStore.getUsableSpace());
+                osFileStore.setTotalSpace(fileStore.getTotalSpace());
+                osFileStore.setFreeInodes(fileStore.getFreeInodes());
+                osFileStore.setTotalInodes(fileStore.getTotalInodes());
+                return true;
+            }
+        }
+        return false;
     }
 }

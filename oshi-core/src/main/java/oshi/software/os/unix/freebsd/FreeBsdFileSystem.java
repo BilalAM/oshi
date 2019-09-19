@@ -37,19 +37,17 @@ import oshi.util.ParseUtil;
 import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
 
 /**
- * The Solaris File System contains {@link OSFileStore}s which are a storage
- * pool, device, partition, volume, concrete file system or other implementation
- * specific means of file storage. In Linux, these are found in the /proc/mount
- * filesystem, excluding temporary and kernel mounts.
- *
- * @author widdis[at]gmail[dot]com
+ * The Solaris File System contains {@link oshi.software.os.OSFileStore}s which
+ * are a storage pool, device, partition, volume, concrete file system or other
+ * implementation specific means of file storage. In Linux, these are found in
+ * the /proc/mount filesystem, excluding temporary and kernel mounts.
  */
 public class FreeBsdFileSystem implements FileSystem {
 
     private static final long serialVersionUID = 1L;
 
     // Linux defines a set of virtual file systems
-    private final List<String> pseudofs = Arrays.asList(new String[] { //
+    private final List<String> pseudofs = Arrays.asList( //
             "procfs", // Proc file system
             "devfs", // Dev temporary file system
             "ctfs", // Contract file system
@@ -59,13 +57,13 @@ public class FreeBsdFileSystem implements FileSystem {
             "sharefs", // Share file system
             "lofs", // Library file system
             "autofs" // Auto mounting fs
-            // "tmpfs", // Temporary file system
-            // NOTE: tmpfs is evaluated apart, because Solaris uses it for
-            // RAMdisks
-    });
+    // "tmpfs", // Temporary file system
+    // NOTE: tmpfs is evaluated apart, because Solaris uses it for
+    // RAMdisks
+    );
 
     // System path mounted as tmpfs
-    private final List<String> tmpfsPaths = Arrays.asList(new String[] { "/system", "/tmp", "/dev/fd" });
+    private final List<String> tmpfsPaths = Arrays.asList("/system", "/tmp", "/dev/fd");
 
     /**
      * Checks if file path equals or starts with an element in the given list
@@ -74,8 +72,8 @@ public class FreeBsdFileSystem implements FileSystem {
      *            A list of path prefixes
      * @param charSeq
      *            a path to check
-     * @return true if the charSeq exactly equals, or starts with the directory
-     *         in aList
+     * @return true if the charSeq exactly equals, or starts with the directory in
+     *         aList
      */
     private boolean listElementStartsWith(List<String> aList, String charSeq) {
         for (String match : aList) {
@@ -87,11 +85,9 @@ public class FreeBsdFileSystem implements FileSystem {
     }
 
     /**
-     * Gets File System Information.
+     * {@inheritDoc}
      *
-     * @return An array of {@link OSFileStore} objects representing mounted
-     *         volumes. May return disconnected volumes with
-     *         {@link OSFileStore#getTotalSpace()} = 0.
+     * Gets File System Information.
      */
     @Override
     public OSFileStore[] getFileStores() {
@@ -160,8 +156,10 @@ public class FreeBsdFileSystem implements FileSystem {
             if (name.isEmpty()) {
                 name = volume.substring(volume.lastIndexOf('/') + 1);
             }
-            long totalSpace = new File(path).getTotalSpace();
-            long usableSpace = new File(path).getUsableSpace();
+            File f = new File(path);
+            long totalSpace = f.getTotalSpace();
+            long usableSpace = f.getUsableSpace();
+            long freeSpace = f.getFreeSpace();
 
             String description;
             if (volume.startsWith("/dev") || path.equals("/")) {
@@ -184,6 +182,7 @@ public class FreeBsdFileSystem implements FileSystem {
             osStore.setDescription(description);
             osStore.setType(type);
             osStore.setUUID(uuid);
+            osStore.setFreeSpace(freeSpace);
             osStore.setUsableSpace(usableSpace);
             osStore.setTotalSpace(totalSpace);
             osStore.setFreeInodes(inodeFreeMap.containsKey(path) ? inodeFreeMap.get(path) : 0L);
@@ -193,13 +192,45 @@ public class FreeBsdFileSystem implements FileSystem {
         return fsList.toArray(new OSFileStore[0]);
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getOpenFileDescriptors() {
         return BsdSysctlUtil.sysctl("kern.openfiles", 0);
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getMaxFileDescriptors() {
         return BsdSysctlUtil.sysctl("kern.maxfiles", 0);
+    }
+
+    /**
+     * <p>
+     * updateFileStoreStats.
+     * </p>
+     *
+     * @param osFileStore
+     *            a {@link oshi.software.os.OSFileStore} object.
+     * @return a boolean.
+     */
+    public static boolean updateFileStoreStats(OSFileStore osFileStore) {
+        // Just as fast to query all of them
+        for (OSFileStore fileStore : new FreeBsdFileSystem().getFileStores()) {
+            if (osFileStore.getName().equals(fileStore.getName())
+                    && osFileStore.getVolume().equals(fileStore.getVolume())
+                    && osFileStore.getMount().equals(fileStore.getMount())) {
+                osFileStore.setLogicalVolume(fileStore.getLogicalVolume());
+                osFileStore.setDescription(fileStore.getDescription());
+                osFileStore.setType(fileStore.getType());
+                osFileStore.setUUID(fileStore.getUUID());
+                osFileStore.setFreeSpace(fileStore.getFreeSpace());
+                osFileStore.setUsableSpace(fileStore.getUsableSpace());
+                osFileStore.setTotalSpace(fileStore.getTotalSpace());
+                osFileStore.setFreeInodes(fileStore.getFreeInodes());
+                osFileStore.setTotalInodes(fileStore.getTotalInodes());
+                return true;
+            }
+        }
+        return false;
     }
 }

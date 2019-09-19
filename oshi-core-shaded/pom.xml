@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>com.github.oshi</groupId>
 		<artifactId>oshi-parent</artifactId>
-		<version>4.0.0-SNAPSHOT</version>
+		<version>4.1.0-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>oshi-core-shaded</artifactId>
@@ -116,7 +116,6 @@
 				<configuration>
 					<bnd><![CDATA[
 					Export-Package: oshi.*;-noimport:=true;-split-package:=merge-first
-					Import-Package: com.sun.management.*;resolution:=optional, !org.slf4j.*, *
 					Bundle-SymbolicName: ${project.groupId}.${project.artifactId}
 					-snapshot: SNAPSHOT
 				]]></bnd>

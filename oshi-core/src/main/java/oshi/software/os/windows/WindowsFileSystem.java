@@ -33,22 +33,20 @@ import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
-import oshi.data.windows.PerfCounterQuery;
-import oshi.data.windows.PerfCounterWildcardQuery;
-import oshi.data.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 import oshi.software.os.FileSystem;
 import oshi.software.os.OSFileStore;
 import oshi.util.ParseUtil;
+import oshi.util.platform.windows.PerfCounterQuery;
+import oshi.util.platform.windows.PerfCounterWildcardQuery;
 import oshi.util.platform.windows.WmiQueryHandler;
 import oshi.util.platform.windows.WmiUtil;
+import oshi.util.platform.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 
 /**
- * The Windows File System contains {@link OSFileStore}s which are a storage
- * pool, device, partition, volume, concrete file system or other implementation
- * specific means of file storage. In Windows, these are represented by a drive
- * letter, e.g., "A:\" and "C:\"
- *
- * @author enrico[dot]bianchi[at]gmail[dot]com
+ * The Windows File System contains {@link oshi.software.os.OSFileStore}s which
+ * are a storage pool, device, partition, volume, concrete file system or other
+ * implementation specific means of file storage. In Windows, these are
+ * represented by a drive letter, e.g., "A:\" and "C:\"
  */
 public class WindowsFileSystem implements FileSystem {
 
@@ -106,17 +104,20 @@ public class WindowsFileSystem implements FileSystem {
         }
     }
 
+    /**
+     * <p>
+     * Constructor for WindowsFileSystem.
+     * </p>
+     */
     public WindowsFileSystem() {
         // Set error mode to fail rather than prompt for FLoppy/CD-Rom
         Kernel32.INSTANCE.SetErrorMode(SEM_FAILCRITICALERRORS);
     }
 
     /**
-     * Gets File System Information.
+     * {@inheritDoc}
      *
-     * @return An array of {@link OSFileStore} objects representing mounted
-     *         volumes. May return disconnected volumes with
-     *         {@link OSFileStore#getTotalSpace()} = 0.
+     * Gets File System Information.
      */
     @Override
     public OSFileStore[] getFileStores() {
@@ -124,7 +125,7 @@ public class WindowsFileSystem implements FileSystem {
         ArrayList<OSFileStore> result;
 
         // Begin with all the local volumes
-        result = getLocalVolumes();
+        result = getLocalVolumes(null);
 
         // Build a map of existing mount point to OSFileStore
         Map<String, OSFileStore> volumeMap = new HashMap<>();
@@ -134,7 +135,7 @@ public class WindowsFileSystem implements FileSystem {
 
         // Iterate through volumes in WMI and update description (if it exists)
         // or add new if it doesn't (expected for network drives)
-        for (OSFileStore wmiVolume : getWmiVolumes()) {
+        for (OSFileStore wmiVolume : getWmiVolumes(null)) {
             if (volumeMap.containsKey(wmiVolume.getMount())) {
                 // If the volume is already in our list, update the name field
                 // using WMI's more verbose name
@@ -149,11 +150,13 @@ public class WindowsFileSystem implements FileSystem {
 
     /**
      * Private method for getting all mounted local drives.
-     *
-     * @return A list of {@link OSFileStore} objects representing all local
-     *         mounted volumes
+     * 
+     * @param nameToMatch
+     *            an optional string to filter match, null otherwise
+     * @return A list of {@link OSFileStore} objects representing all local mounted
+     *         volumes
      */
-    private ArrayList<OSFileStore> getLocalVolumes() {
+    private ArrayList<OSFileStore> getLocalVolumes(String nameToMatch) {
         ArrayList<OSFileStore> fs;
         String volume;
         String strFsType;
@@ -189,26 +192,30 @@ public class WindowsFileSystem implements FileSystem {
             volume = new String(aVolume).trim();
             Kernel32.INSTANCE.GetVolumeInformation(volume, name, BUFSIZE, null, null, null, fstype, 16);
             Kernel32.INSTANCE.GetVolumePathNamesForVolumeName(volume, mount, BUFSIZE, null);
-            Kernel32.INSTANCE.GetDiskFreeSpaceEx(volume, userFreeBytes, totalBytes, systemFreeBytes);
 
             strMount = new String(mount).trim();
             strName = new String(name).trim();
             strFsType = new String(fstype).trim();
-            // Parse uuid from volume name
-            String uuid = ParseUtil.parseUuidOrDefault(volume, "");
+            String osName = String.format("%s (%s)", strName, strMount);
+            if (nameToMatch == null || nameToMatch.equals(osName)) {
+                Kernel32.INSTANCE.GetDiskFreeSpaceEx(volume, userFreeBytes, totalBytes, systemFreeBytes);
+                // Parse uuid from volume name
+                String uuid = ParseUtil.parseUuidOrDefault(volume, "");
 
-            if (!strMount.isEmpty()) {
-                // Volume is mounted
-                OSFileStore osStore = new OSFileStore();
-                osStore.setName(String.format("%s (%s)", strName, strMount));
-                osStore.setVolume(volume);
-                osStore.setMount(strMount);
-                osStore.setDescription(getDriveType(strMount));
-                osStore.setType(strFsType);
-                osStore.setUUID(uuid);
-                osStore.setUsableSpace(systemFreeBytes.getValue());
-                osStore.setTotalSpace(totalBytes.getValue());
-                fs.add(osStore);
+                if (!strMount.isEmpty()) {
+                    // Volume is mounted
+                    OSFileStore osStore = new OSFileStore();
+                    osStore.setName(osName);
+                    osStore.setVolume(volume);
+                    osStore.setMount(strMount);
+                    osStore.setDescription(getDriveType(strMount));
+                    osStore.setType(strFsType);
+                    osStore.setUUID(uuid);
+                    osStore.setFreeSpace(systemFreeBytes.getValue());
+                    osStore.setUsableSpace(userFreeBytes.getValue());
+                    osStore.setTotalSpace(totalBytes.getValue());
+                    fs.add(osStore);
+                }
             }
             retVal = Kernel32.INSTANCE.FindNextVolume(hVol, aVolume, BUFSIZE);
             if (!retVal) {
@@ -222,16 +229,25 @@ public class WindowsFileSystem implements FileSystem {
 
     /**
      * Private method for getting logical drives listed in WMI.
-     *
+     * 
+     * @param nameToMatch
+     *            an optional string to filter match, null otherwise
      * @return A list of {@link OSFileStore} objects representing all network
      *         mounted volumes
      */
-    private List<OSFileStore> getWmiVolumes() {
+    private List<OSFileStore> getWmiVolumes(String nameToMatch) {
         long free;
         long total;
         List<OSFileStore> fs = new ArrayList<>();
 
+        String wmiClassName = this.logicalDiskQuery.getWmiClassName();
+        if (nameToMatch != null) {
+            this.logicalDiskQuery.setWmiClassName(wmiClassName + " WHERE Name=\"" + nameToMatch + "\"");
+        }
         WmiResult<LogicalDiskProperty> drives = wmiQueryHandler.queryWMI(this.logicalDiskQuery);
+        if (nameToMatch != null) {
+            this.logicalDiskQuery.setWmiClassName(wmiClassName);
+        }
 
         for (int i = 0; i < drives.getResultCount(); i++) {
             free = WmiUtil.getUint64(drives, LogicalDiskProperty.FREESPACE, i);
@@ -259,6 +275,7 @@ public class WindowsFileSystem implements FileSystem {
             osStore.setDescription(getDriveType(name));
             osStore.setType(WmiUtil.getString(drives, LogicalDiskProperty.FILESYSTEM, i));
             osStore.setUUID("");
+            osStore.setFreeSpace(free); // no separate field, assume same
             osStore.setUsableSpace(free);
             osStore.setTotalSpace(total);
             fs.add(osStore);
@@ -291,6 +308,7 @@ public class WindowsFileSystem implements FileSystem {
         }
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getOpenFileDescriptors() {
         Map<HandleCountProperty, List<Long>> valueListMap = this.handlePerfCounters.queryValuesWildcard();
@@ -304,8 +322,43 @@ public class WindowsFileSystem implements FileSystem {
         return descriptors;
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getMaxFileDescriptors() {
         return MAX_WINDOWS_HANDLES;
+    }
+
+    /**
+     * <p>
+     * updateFileStoreStats.
+     * </p>
+     *
+     * @param osFileStore
+     *            a {@link oshi.software.os.OSFileStore} object.
+     * @return a boolean.
+     */
+    public static boolean updateFileStoreStats(OSFileStore osFileStore) {
+        WindowsFileSystem wfs = new WindowsFileSystem();
+        // Check if we have the volume locally
+        List<OSFileStore> volumes = wfs.getLocalVolumes(osFileStore.getName());
+        if (volumes.isEmpty()) {
+            // Not locally, search WMI
+            volumes = wfs.getWmiVolumes(osFileStore.getName());
+        }
+        for (OSFileStore fileStore : volumes) {
+            if (osFileStore.getVolume().equals(fileStore.getVolume())
+                    && osFileStore.getMount().equals(fileStore.getMount())) {
+                osFileStore.setLogicalVolume(fileStore.getLogicalVolume());
+                osFileStore.setDescription(fileStore.getDescription());
+                osFileStore.setType(fileStore.getType());
+                osFileStore.setFreeSpace(fileStore.getFreeSpace());
+                osFileStore.setUsableSpace(fileStore.getUsableSpace());
+                osFileStore.setTotalSpace(fileStore.getTotalSpace());
+                osFileStore.setFreeInodes(fileStore.getFreeInodes());
+                osFileStore.setTotalInodes(fileStore.getTotalInodes());
+                return true;
+            }
+        }
+        return false;
     }
 }

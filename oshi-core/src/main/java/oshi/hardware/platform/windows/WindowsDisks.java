@@ -37,20 +37,18 @@ import com.sun.jna.platform.win32.Kernel32; // NOSONAR squid:S1191
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
-import oshi.data.windows.PerfCounterQuery;
-import oshi.data.windows.PerfCounterWildcardQuery;
-import oshi.data.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 import oshi.hardware.Disks;
 import oshi.hardware.HWDiskStore;
 import oshi.hardware.HWPartition;
 import oshi.util.ParseUtil;
+import oshi.util.platform.windows.PerfCounterQuery;
+import oshi.util.platform.windows.PerfCounterWildcardQuery;
 import oshi.util.platform.windows.WmiQueryHandler;
 import oshi.util.platform.windows.WmiUtil;
+import oshi.util.platform.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 
 /**
  * Windows hard disk implementation.
- *
- * @author enrico[dot]bianchi[at]gmail[dot]com
  */
 public class WindowsDisks implements Disks {
 
@@ -123,6 +121,15 @@ public class WindowsDisks implements Disks {
 
     private final transient WmiQueryHandler wmiQueryHandler = WmiQueryHandler.createInstance();
 
+    /**
+     * <p>
+     * updateDiskStats.
+     * </p>
+     *
+     * @param diskStore
+     *            a {@link oshi.hardware.HWDiskStore} object.
+     * @return a boolean.
+     */
     public static boolean updateDiskStats(HWDiskStore diskStore) {
         String index = null;
         HWPartition[] partitions = diskStore.getPartitions();
@@ -161,6 +168,7 @@ public class WindowsDisks implements Disks {
 
     }
 
+    /** {@inheritDoc} */
     @Override
     public HWDiskStore[] getDisks() {
         List<HWDiskStore> result;
@@ -204,8 +212,8 @@ public class WindowsDisks implements Disks {
     }
 
     /**
-     * Populates the maps for the specified index. If the index is null,
-     * populates all the maps
+     * Populates the maps for the specified index. If the index is null, populates
+     * all the maps
      *
      * @param index
      *            The index to populate/update maps for

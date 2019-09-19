@@ -32,15 +32,18 @@ import org.slf4j.LoggerFactory;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery; // NOSONAR
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
-import oshi.data.windows.PerfCounterWildcardQuery;
-import oshi.data.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
-import oshi.hardware.Sensors;
+import oshi.hardware.common.AbstractSensors;
+import oshi.util.platform.windows.PerfCounterWildcardQuery;
+import oshi.util.platform.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 import oshi.util.platform.windows.WmiQueryHandler;
 import oshi.util.platform.windows.WmiUtil;
 
-public class WindowsSensors implements Sensors {
-
-    private static final long serialVersionUID = 1L;
+/**
+ * <p>
+ * WindowsSensors class.
+ * </p>
+ */
+public class WindowsSensors extends AbstractSensors {
 
     private static final Logger LOG = LoggerFactory.getLogger(WindowsSensors.class);
 
@@ -50,29 +53,29 @@ public class WindowsSensors implements Sensors {
         IDENTIFIER;
     }
 
-    private final transient WmiQuery<OhmHardwareProperty> ohmHardwareQuery = new WmiQuery<>(WmiUtil.OHM_NAMESPACE,
+    private final WmiQuery<OhmHardwareProperty> ohmHardwareQuery = new WmiQuery<>(WmiUtil.OHM_NAMESPACE,
             "Hardware WHERE HardwareType=\"CPU\"", OhmHardwareProperty.class);
-    private final transient WmiQuery<OhmHardwareProperty> owhVoltageQuery = new WmiQuery<>(WmiUtil.OHM_NAMESPACE,
+    private final WmiQuery<OhmHardwareProperty> owhVoltageQuery = new WmiQuery<>(WmiUtil.OHM_NAMESPACE,
             "Hardware WHERE SensorType=\"Voltage\"", OhmHardwareProperty.class);
 
     enum OhmSensorProperty {
         VALUE;
     }
 
-    private final transient WmiQuery<OhmSensorProperty> ohmSensorQuery = new WmiQuery<>(WmiUtil.OHM_NAMESPACE, null,
+    private final WmiQuery<OhmSensorProperty> ohmSensorQuery = new WmiQuery<>(WmiUtil.OHM_NAMESPACE, null,
             OhmSensorProperty.class);
 
     enum FanProperty {
         DESIREDSPEED;
     }
 
-    private final transient WmiQuery<FanProperty> fanQuery = new WmiQuery<>("Win32_Fan", FanProperty.class);
+    private final WmiQuery<FanProperty> fanQuery = new WmiQuery<>("Win32_Fan", FanProperty.class);
 
     enum VoltProperty {
         CURRENTVOLTAGE, VOLTAGECAPS;
     }
 
-    private final transient WmiQuery<VoltProperty> voltQuery = new WmiQuery<>("Win32_Processor", VoltProperty.class);
+    private final WmiQuery<VoltProperty> voltQuery = new WmiQuery<>("Win32_Processor", VoltProperty.class);
 
     /*
      * For temperature query
@@ -98,23 +101,34 @@ public class WindowsSensors implements Sensors {
         }
     }
 
-    private final transient PerfCounterWildcardQuery<ThermalZoneProperty> thermalZonePerfCounters = new PerfCounterWildcardQuery<>(
+    private final PerfCounterWildcardQuery<ThermalZoneProperty> thermalZonePerfCounters = new PerfCounterWildcardQuery<>(
             ThermalZoneProperty.class, "Thermal Zone Information",
             "Win32_PerfRawData_Counters_ThermalZoneInformation WHERE Name LIKE \"%cpu%\"");
 
-    private final transient WmiQueryHandler wmiQueryHandler = WmiQueryHandler.createInstance();
+    private final WmiQueryHandler wmiQueryHandler = WmiQueryHandler.createInstance();
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public double getCpuTemperature() {
-        // Initialize default
-        double tempC = 0d;
-
+    public double queryCpuTemperature() {
         // Attempt to fetch value from Open Hardware Monitor if it is running,
         // as it will give the most accurate results and the time to query (or
         // attempt) is trivial
+        double tempC = getTempFromOHM();
+        if (tempC > 0d) {
+            return tempC;
+        }
+
+        // If we get this far, OHM is not running. Try from PDH/WMI
+        tempC = getTempFromPerfCounters();
+
+        // Other fallbacks to WMI are unreliable so we omit them
+        // Win32_TemperatureProbe is the official location but is not currently
+        // populated and is "reserved for future use"
+        // MSAcpu_ThermalZoneTemperature only updates during a high temperature
+        // event and is otherwise unchanged/misleading.
+        return tempC;
+    }
+
+    private double getTempFromOHM() {
         WmiResult<OhmHardwareProperty> ohmHardware = this.wmiQueryHandler.queryWMI(ohmHardwareQuery);
         if (ohmHardware.getResultCount() > 0) {
             LOG.debug("Found Temperature data in Open Hardware Monitor");
@@ -125,21 +139,20 @@ public class WindowsSensors implements Sensors {
                 sb.append("\" AND SensorType=\"Temperature\"");
                 ohmSensorQuery.setWmiClassName(sb.toString());
                 WmiResult<OhmSensorProperty> ohmSensors = this.wmiQueryHandler.queryWMI(ohmSensorQuery);
-
                 if (ohmSensors.getResultCount() > 0) {
                     double sum = 0;
                     for (int i = 0; i < ohmSensors.getResultCount(); i++) {
                         sum += WmiUtil.getFloat(ohmSensors, OhmSensorProperty.VALUE, i);
                     }
-                    tempC = sum / ohmSensors.getResultCount();
-                }
-                if (tempC > 0) {
-                    return tempC;
+                    return sum / ohmSensors.getResultCount();
                 }
             }
         }
+        return 0;
+    }
 
-        // If we get this far, OHM is not running. Try from PDH/WMI
+    private double getTempFromPerfCounters() {
+        double tempC = 0d;
         long tempK = 0L;
         Map<ThermalZoneProperty, List<Long>> valueListMap = this.thermalZonePerfCounters.queryValuesWildcard();
         List<Long> valueList = valueListMap.get(ThermalZoneProperty.TEMPERATURE);
@@ -153,24 +166,29 @@ public class WindowsSensors implements Sensors {
         } else if (tempK > 274L) {
             tempC = tempK - 273d;
         }
-        if (tempC < 0d) {
-            tempC = 0d;
-        }
-
-        // Other fallbacks to WMI are unreliable so we omit them
-        // Win32_TemperatureProbe is the official location but is not currently
-        // populated and is "reserved for future use"
-        // MSAcpu_ThermalZoneTemperature only updates during a high temperature
-        // event and is otherwise unchanged/misleading.
-        return tempC;
+        return tempC < 0d ? 0d : tempC;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public int[] getFanSpeeds() {
+    public int[] queryFanSpeeds() {
         // Attempt to fetch value from Open Hardware Monitor if it is running
+        int[] fanSpeeds = getFansFromOHM();
+        if (fanSpeeds.length > 0) {
+            return fanSpeeds;
+        }
+
+        // If we get this far, OHM is not running.
+        // Try to get from conventional WMI
+        fanSpeeds = getFansFromWMI();
+        if (fanSpeeds.length > 0) {
+            return fanSpeeds;
+        }
+
+        // Default
+        return new int[0];
+    }
+
+    private int[] getFansFromOHM() {
         WmiResult<OhmHardwareProperty> ohmHardware = this.wmiQueryHandler.queryWMI(ohmHardwareQuery);
         if (ohmHardware.getResultCount() > 0) {
             LOG.debug("Found Fan data in Open Hardware Monitor");
@@ -191,9 +209,10 @@ public class WindowsSensors implements Sensors {
                 }
             }
         }
+        return new int[0];
+    }
 
-        // If we get this far, OHM is not running.
-        // Try to get from conventional WMI
+    private int[] getFansFromWMI() {
         WmiResult<FanProperty> fan = this.wmiQueryHandler.queryWMI(fanQuery);
         if (fan.getResultCount() > 1) {
             LOG.debug("Found Fan data in WMI");
@@ -203,16 +222,25 @@ public class WindowsSensors implements Sensors {
             }
             return fanSpeeds;
         }
-        // Default
-        return new int[1];
+        return new int[0];
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public double getCpuVoltage() {
+    public double queryCpuVoltage() {
         // Attempt to fetch value from Open Hardware Monitor if it is running
+        double volts = getVoltsFromOHM();
+        if (volts > 0d) {
+            return volts;
+        }
+
+        // If we get this far, OHM is not running.
+        // Try to get from conventional WMI
+        volts = getVoltsFromWMI();
+
+        return volts;
+    }
+
+    private double getVoltsFromOHM() {
         WmiResult<OhmHardwareProperty> ohmHardware = this.wmiQueryHandler.queryWMI(owhVoltageQuery);
         if (ohmHardware.getResultCount() > 0) {
             LOG.debug("Found Voltage data in Open Hardware Monitor");
@@ -239,9 +267,10 @@ public class WindowsSensors implements Sensors {
                 return WmiUtil.getFloat(ohmSensors, OhmSensorProperty.VALUE, 0);
             }
         }
+        return 0d;
+    }
 
-        // If we get this far, OHM is not running.
-        // Try to get from conventional WMI
+    private double getVoltsFromWMI() {
         WmiResult<VoltProperty> voltage = wmiQueryHandler.queryWMI(voltQuery);
         if (voltage.getResultCount() > 1) {
             LOG.debug("Found Voltage data in WMI");
@@ -266,7 +295,6 @@ public class WindowsSensors implements Sensors {
                 }
             }
         }
-        // Default
         return 0d;
     }
 }

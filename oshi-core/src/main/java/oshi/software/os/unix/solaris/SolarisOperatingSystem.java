@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import oshi.jna.platform.linux.Libc;
+import com.sun.jna.platform.unix.solaris.LibKstat.Kstat; // NOSONAR squid:S1191
+
+import oshi.jna.platform.unix.solaris.SolarisLibc;
 import oshi.software.common.AbstractOperatingSystem;
 import oshi.software.os.FileSystem;
 import oshi.software.os.NetworkParams;
@@ -36,16 +38,30 @@ import oshi.util.ExecutingCommand;
 import oshi.util.LsofUtil;
 import oshi.util.ParseUtil;
 import oshi.util.platform.linux.ProcUtil;
+import oshi.util.platform.unix.solaris.KstatUtil;
 
 /**
  * Linux is a family of free operating systems most commonly used on personal
  * computers.
- *
- * @author widdis[at]gmail[dot]com
  */
 public class SolarisOperatingSystem extends AbstractOperatingSystem {
     private static final long serialVersionUID = 1L;
 
+    private static final long BOOTTIME;
+    static {
+        Kstat ksp = KstatUtil.kstatLookup("unix", 0, "system_misc");
+        if (ksp != null && KstatUtil.kstatRead(ksp)) {
+            BOOTTIME = KstatUtil.kstatDataLookupLong(ksp, "boot_time");
+        } else {
+            BOOTTIME = System.currentTimeMillis() / 1000L - querySystemUptime();
+        }
+    }
+
+    /**
+     * <p>
+     * Constructor for SolarisOperatingSystem.
+     * </p>
+     */
     public SolarisOperatingSystem() {
         this.manufacturer = "Oracle";
         this.family = "SunOS";
@@ -59,17 +75,13 @@ public class SolarisOperatingSystem extends AbstractOperatingSystem {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public FileSystem getFileSystem() {
         return new SolarisFileSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getProcesses(int limit, ProcessSort sort, boolean slowFields) {
         List<OSProcess> procs = getProcessListFromPS(
@@ -78,9 +90,7 @@ public class SolarisOperatingSystem extends AbstractOperatingSystem {
         return sorted.toArray(new OSProcess[0]);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess getProcess(int pid) {
         return getProcess(pid, true);
@@ -95,9 +105,7 @@ public class SolarisOperatingSystem extends AbstractOperatingSystem {
         return procs.get(0);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getChildProcesses(int parentPid, int limit, ProcessSort sort) {
         List<OSProcess> procs = getProcessListFromPS(
@@ -123,7 +131,7 @@ public class SolarisOperatingSystem extends AbstractOperatingSystem {
                 continue;
             }
             long now = System.currentTimeMillis();
-            OSProcess sproc = new OSProcess();
+            OSProcess sproc = new OSProcess(this);
             switch (split[0].charAt(0)) {
             case 'O':
                 sproc.setState(OSProcess.State.RUNNING);
@@ -167,35 +175,40 @@ public class SolarisOperatingSystem extends AbstractOperatingSystem {
             sproc.setCurrentWorkingDirectory(cwdMap.getOrDefault(sproc.getProcessID(), ""));
             // bytes read/written not easily available
 
-            // gets the open files count -- slow
             if (slowFields) {
                 List<String> openFilesList = ExecutingCommand.runNative(String.format("lsof -p %d", pid));
                 sproc.setOpenFiles(openFilesList.size() - 1L);
+
+                List<String> pflags = ExecutingCommand.runNative("pflags " + pid);
+                for (String line : pflags) {
+                    if (line.contains("data model")) {
+                        if (line.contains("LP32")) {
+                            sproc.setBitness(32);
+                        } else if (line.contains("LP64")) {
+                            sproc.setBitness(64);
+                        }
+                        break;
+                    }
+                }
             }
             procs.add(sproc);
         }
         return procs;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessId() {
-        return Libc.INSTANCE.getpid();
+        return SolarisLibc.INSTANCE.getpid();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessCount() {
         return ProcUtil.getPidFiles().length;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getThreadCount() {
         List<String> threadList = ExecutingCommand.runNative("ps -eLo pid");
@@ -206,9 +219,28 @@ public class SolarisOperatingSystem extends AbstractOperatingSystem {
         return getProcessCount();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemUptime() {
+        return querySystemUptime();
+    }
+
+    private static long querySystemUptime() {
+        Kstat ksp = KstatUtil.kstatLookup("unix", 0, "system_misc");
+        if (ksp == null) {
+            return 0L;
+        }
+        // Snap Time is in nanoseconds; divide for seconds
+        return ksp.ks_snaptime / 1_000_000_000L;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemBootTime() {
+        return BOOTTIME;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public NetworkParams getNetworkParams() {
         return new SolarisNetworkParams();

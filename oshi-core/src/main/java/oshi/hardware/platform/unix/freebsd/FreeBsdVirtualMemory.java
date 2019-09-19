@@ -23,68 +23,67 @@
  */
 package oshi.hardware.platform.unix.freebsd;
 
+import static oshi.util.Memoizer.defaultExpiration;
+import static oshi.util.Memoizer.memoize;
+
+import java.util.function.Supplier;
+
 import oshi.hardware.common.AbstractVirtualMemory;
 import oshi.util.ExecutingCommand;
 import oshi.util.ParseUtil;
 import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
 
 /**
- * Memory obtained by sysctl vm.stats
+ * Memory obtained by swapinfo
  */
 public class FreeBsdVirtualMemory extends AbstractVirtualMemory {
 
-    private static final long serialVersionUID = 1L;
+    private final Supplier<Long> used = memoize(this::querySwapUsed, defaultExpiration());
 
-    /**
-     * {@inheritDoc}
-     */
+    private final Supplier<Long> total = memoize(this::querySwapTotal, defaultExpiration());
+
+    private final Supplier<Long> pagesIn = memoize(this::queryPagesIn, defaultExpiration());
+
+    private final Supplier<Long> pagesOut = memoize(this::queryPagesOut, defaultExpiration());
+
     @Override
     public long getSwapUsed() {
-        if (this.swapUsed < 0) {
-            updateSwapUsage();
-        }
-        return this.swapUsed;
+        return used.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapTotal() {
-        if (this.swapTotal < 0) {
-            this.swapTotal = BsdSysctlUtil.sysctl("vm.swap_total", 0L);
-        }
-        return this.swapTotal;
+        return total.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapPagesIn() {
-        if (this.swapPagesIn < 0) {
-            this.swapPagesIn = BsdSysctlUtil.sysctl("vm.stats.vm.v_swappgsin", 0L);
-        }
-        return this.swapPagesIn;
+        return pagesIn.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapPagesOut() {
-        if (this.swapPagesOut < 0) {
-            this.swapPagesOut = BsdSysctlUtil.sysctl("vm.stats.vm.v_swappgsout", 0L);
-        }
-        return this.swapPagesOut;
+        return pagesOut.get();
     }
 
-    private void updateSwapUsage() {
+    private long querySwapUsed() {
         String swapInfo = ExecutingCommand.getAnswerAt("swapinfo -k", 1);
         String[] split = ParseUtil.whitespaces.split(swapInfo);
         if (split.length < 5) {
-            return;
+            return 0L;
         }
-        this.swapUsed = ParseUtil.parseLongOrDefault(split[2], 0L) << 10;
+        return ParseUtil.parseLongOrDefault(split[2], 0L) << 10;
+    }
+
+    private long querySwapTotal() {
+        return BsdSysctlUtil.sysctl("vm.swap_total", 0L);
+    }
+
+    private long queryPagesIn() {
+        return BsdSysctlUtil.sysctl("vm.stats.vm.v_swappgsin", 0L);
+    }
+
+    private long queryPagesOut() {
+        return BsdSysctlUtil.sysctl("vm.stats.vm.v_swappgsout", 0L);
     }
 }

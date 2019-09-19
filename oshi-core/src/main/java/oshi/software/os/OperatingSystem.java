@@ -31,8 +31,6 @@ import java.util.List;
  * An operating system (OS) is the software on a computer that manages the way
  * different programs use its hardware, and regulates the ways that a user
  * controls the computer.
- *
- * @author dblock[at]dblock[dot]org
  */
 public interface OperatingSystem extends Serializable {
 
@@ -65,64 +63,52 @@ public interface OperatingSystem extends Serializable {
     OperatingSystemVersion getVersion();
 
     /**
-     * Instantiates a {@link FileSystem} object.
+     * Instantiates a {@link oshi.software.os.FileSystem} object.
      *
-     * @return A {@link FileSystem} object.
+     * @return A {@link oshi.software.os.FileSystem} object.
      */
     FileSystem getFileSystem();
 
     /**
-     * Gets currently running processes. If a positive limit is specified,
-     * returns only that number of processes; zero will return all processes.
-     * The order may be specified by the sort parameter, for example, to return
-     * the top cpu or memory consuming processes; if null, no order is
-     * guaranteed.
+     * Gets currently running processes. If a positive limit is specified, returns
+     * only that number of processes; zero will return all processes. The order may
+     * be specified by the sort parameter, for example, to return the top cpu or
+     * memory consuming processes; if null, no order is guaranteed.
      *
      * @param limit
      *            Max number of results to return, or 0 to return all results
      * @param sort
      *            If not null, determines sorting of results
      * @return An array of {@link oshi.software.os.OSProcess} objects for the
-     *         specified number (or all) of currently running processes, sorted
-     *         as specified. The array may contain null elements if a process
-     *         terminates during iteration. Some fields that are slow to
-     *         retrieve (e.g., group information on Windows, open files on Unix
-     *         and Linux) will be skipped.
+     *         specified number (or all) of currently running processes, sorted as
+     *         specified. The array may contain null elements if a process
+     *         terminates during iteration. Some fields that are slow to retrieve
+     *         (e.g., group information on Windows, open files on Unix and Linux)
+     *         will be skipped.
      */
     OSProcess[] getProcesses(int limit, ProcessSort sort);
 
     /**
-     * Gets currently running processes. If a positive limit is specified,
-     * returns only that number of processes; zero will return all processes.
-     * The order may be specified by the sort parameter, for example, to return
-     * the top cpu or memory consuming processes; if null, no order is
-     * guaranteed.
+     * Gets currently running processes. If a positive limit is specified, returns
+     * only that number of processes; zero will return all processes. The order may
+     * be specified by the sort parameter, for example, to return the top cpu or
+     * memory consuming processes; if null, no order is guaranteed.
      *
      * @param limit
      *            Max number of results to return, or 0 to return all results
      * @param sort
      *            If not null, determines sorting of results
      * @param slowFields
-     *            If false, skip {@link oshi.software.os.OSProcess} fields that
-     *            are slow to retrieve (e.g., group information on Windows, open
-     *            files on Unix and Linux). If true, include all fields,
-     *            regardless of how long it takes to retrieve the data.
+     *            If false, skip {@link oshi.software.os.OSProcess} fields that are
+     *            slow to retrieve (e.g., group information on Windows, open files
+     *            on Unix and Linux). If true, include all fields, regardless of how
+     *            long it takes to retrieve the data.
      * @return An array of {@link oshi.software.os.OSProcess} objects for the
-     *         specified number (or all) of currently running processes, sorted
-     *         as specified. The array may contain null elements if a process
+     *         specified number (or all) of currently running processes, sorted as
+     *         specified. The array may contain null elements if a process
      *         terminates during iteration.
      */
     OSProcess[] getProcesses(int limit, ProcessSort sort, boolean slowFields);
-
-    /**
-     * Gets information on a currently running process
-     *
-     * @param pid
-     *            A process ID
-     * @return An {@link oshi.software.os.OSProcess} object for the specified
-     *         process id if it is running; null otherwise
-     */
-    OSProcess getProcess(int pid);
 
     /**
      * Gets information on a currently running processes. This has improved
@@ -137,11 +123,21 @@ public interface OperatingSystem extends Serializable {
     List<OSProcess> getProcesses(Collection<Integer> pids);
 
     /**
-     * Gets currently running child processes of provided PID. If a positive
-     * limit is specified, returns only that number of processes; zero will
-     * return all processes. The order may be specified by the sort parameter,
-     * for example, to return the top cpu or memory consuming processes; if
-     * null, no order is guaranteed.
+     * Gets information on a currently running process
+     *
+     * @param pid
+     *            A process ID
+     * @return An {@link oshi.software.os.OSProcess} object for the specified
+     *         process id if it is running; null otherwise
+     */
+    OSProcess getProcess(int pid);
+
+    /**
+     * Gets currently running child processes of provided PID. If a positive limit
+     * is specified, returns only that number of processes; zero will return all
+     * processes. The order may be specified by the sort parameter, for example, to
+     * return the top cpu or memory consuming processes; if null, no order is
+     * guaranteed.
      *
      * @param parentPid
      *            A process ID
@@ -149,10 +145,10 @@ public interface OperatingSystem extends Serializable {
      *            Max number of results to return, or 0 to return all results
      * @param sort
      *            If not null, determines sorting of results
-     * @return An array of {@link oshi.software.os.OSProcess} objects presenting
-     *         the specified number (or all) of currently running child
-     *         processes of the provided PID, sorted as specified. The array may
-     *         contain null elements if a process terminates during iteration.
+     * @return An array of {@link oshi.software.os.OSProcess} objects presenting the
+     *         specified number (or all) of currently running child processes of the
+     *         provided PID, sorted as specified. The array may contain null
+     *         elements if a process terminates during iteration.
      */
     OSProcess[] getChildProcesses(int parentPid, int limit, ProcessSort sort);
 
@@ -185,9 +181,32 @@ public interface OperatingSystem extends Serializable {
     int getBitness();
 
     /**
-     * Instantiates a {@link NetworkParams} object.
+     * Get the System up time (time since boot).
      *
-     * @return A {@link NetworkParams} object.
+     * @return Number of seconds since boot.
+     */
+    long getSystemUptime();
+
+    /**
+     * Get Unix time of boot.
+     *
+     * @return The approximate time at which the system booted, in seconds since the
+     *         Unix epoch.
+     */
+    long getSystemBootTime();
+
+    /**
+     * Determine whether the current process has elevated permissions such as sudo /
+     * Administrator
+     *
+     * @return True if this process has elevated permissions
+     */
+    boolean isElevated();
+
+    /**
+     * Instantiates a {@link oshi.software.os.NetworkParams} object.
+     *
+     * @return A {@link oshi.software.os.NetworkParams} object.
      */
     NetworkParams getNetworkParams();
 }

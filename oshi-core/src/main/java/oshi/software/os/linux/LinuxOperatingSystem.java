@@ -24,24 +24,23 @@
 package oshi.software.os.linux;
 
 import java.io.File;
-import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.Memory;
+import com.sun.jna.Memory; // NOSONAR squid:S1191
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.linux.LibC;
 import com.sun.jna.platform.linux.LibC.Sysinfo;
 
-import oshi.jna.platform.linux.Libc;
+import oshi.jna.platform.linux.LinuxLibc;
 import oshi.software.common.AbstractOperatingSystem;
 import oshi.software.os.FileSystem;
 import oshi.software.os.NetworkParams;
@@ -53,16 +52,34 @@ import oshi.util.ParseUtil;
 import oshi.util.platform.linux.ProcUtil;
 
 /**
- * Linux is a family of free operating systems most commonly used on personal
- * computers.
- *
- * @author widdis[at]gmail[dot]com
+ * <p>
+ * LinuxOperatingSystem class.
+ * </p>
  */
 public class LinuxOperatingSystem extends AbstractOperatingSystem {
 
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOG = LoggerFactory.getLogger(LinuxOperatingSystem.class);
+
+    private static final long BOOTTIME;
+    static {
+        // Boot time given by btime variable in /proc/stat.
+        List<String> procStat = FileUtil.readFile("/proc/stat");
+        long tempBT = 0;
+        for (String stat : procStat) {
+            if (stat.startsWith("btime")) {
+                String[] bTime = ParseUtil.whitespaces.split(stat);
+                tempBT = ParseUtil.parseLongOrDefault(bTime[1], 0L);
+                break;
+            }
+        }
+        // If above fails, current time minus uptime.
+        if (tempBT == 0) {
+            tempBT = System.currentTimeMillis() / 1000L - (long) ProcUtil.getSystemUptimeSeconds();
+        }
+        BOOTTIME = tempBT;
+    }
 
     // Populated with results of reading /etc/os-release or other files
     protected String versionId;
@@ -105,23 +122,15 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
     // Check /proc/self/stat to find its length
     private static final int PROC_PID_STAT_LENGTH;
     static {
-        List<String> stat = FileUtil.readFile("/proc/self/stat", false);
-        if (!stat.isEmpty() && stat.get(0).contains(")")) {
-            String procPidStat = stat.get(0);
-            // 2nd elment is process name and may contain spaces, but is
-            // within parenthesis. Split from the ')' index.
-            int parenIndex = procPidStat.lastIndexOf(')');
-            String[] split = ParseUtil.whitespaces.split(procPidStat.substring(parenIndex));
-            // ')' is split index 0 but stat element 2.
-            // Add 1 to account for pid that didn't make the split
-            PROC_PID_STAT_LENGTH = split.length + 1;
+        String stat = FileUtil.getStringFromFile(ProcUtil.getProcPath() + "/self/stat");
+        if (!stat.isEmpty() && stat.contains(")")) {
+            // add 3 to account for pid, process name in prarenthesis, and state
+            PROC_PID_STAT_LENGTH = ParseUtil.countStringToLongArray(stat, ' ') + 3;
         } else {
             // Default assuming recent kernel
             PROC_PID_STAT_LENGTH = 52;
         }
     }
-
-    private transient LinuxUserGroupInfo userGroupInfo = new LinuxUserGroupInfo();
 
     // Jiffies per second, used for process time counters.
     private static final long USER_HZ = ParseUtil.parseLongOrDefault(ExecutingCommand.getFirstAnswer("getconf CLK_TCK"),
@@ -143,11 +152,11 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         // be +/- 5 ms due to System Uptime rounding to nearest 10ms.
     }
 
-    /*
-     * This process map will cache process info to avoid repeated calls for data
+    /**
+     * <p>
+     * Constructor for LinuxOperatingSystem.
+     * </p>
      */
-    private final Map<Integer, OSProcess> processMap = new HashMap<>();
-
     public LinuxOperatingSystem() {
         this.manufacturer = "GNU/Linux";
         setFamilyFromReleaseFiles();
@@ -164,36 +173,25 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public FileSystem getFileSystem() {
         return new LinuxFileSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getProcesses(int limit, ProcessSort sort, boolean slowFields) {
         List<OSProcess> procs = new ArrayList<>();
         File[] pids = ProcUtil.getPidFiles();
-        List<Integer> pidsToKeep = new ArrayList<>();
+        LinuxUserGroupInfo userGroupInfo = new LinuxUserGroupInfo();
 
         // now for each file (with digit name) get process info
         for (File pidFile : pids) {
             int pid = ParseUtil.parseIntOrDefault(pidFile.getName(), 0);
-            OSProcess proc = getProcess(pid, slowFields);
+            OSProcess proc = getProcess(pid, userGroupInfo, slowFields);
             if (proc != null) {
                 procs.add(proc);
-                pidsToKeep.add(pid);
-            }
-        }
-        // Clear out anything not in cache
-        for (Integer pid : new HashSet<>(this.processMap.keySet())) {
-            if (!pidsToKeep.contains(pid)) {
-                this.processMap.remove(pid);
             }
         }
         // Sort
@@ -201,20 +199,19 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         return sorted.toArray(new OSProcess[0]);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess getProcess(int pid) {
-        return getProcess(pid, true);
+        return getProcess(pid, new LinuxUserGroupInfo(), true);
     }
 
-    private OSProcess getProcess(int pid, boolean slowFields) {
+    private OSProcess getProcess(int pid, LinuxUserGroupInfo userGroupInfo, boolean slowFields) {
         String path = "";
         Pointer buf = new Memory(1024);
-        int size = Libc.INSTANCE.readlink(String.format("/proc/%d/exe", pid), buf, 1023);
+        int size = LinuxLibc.INSTANCE.readlink(String.format("/proc/%d/exe", pid), buf, 1023);
         if (size > 0) {
-            path = buf.getString(0).substring(0, size);
+            String tmp = buf.getString(0);
+            path = tmp.substring(0, tmp.length() < size ? tmp.length() : size);
         }
         Map<String, String> io = FileUtil.getKeyValueMapFromFile(String.format("/proc/%d/io", pid), ":");
         // See man proc for how to parse /proc/[pid]/stat
@@ -228,23 +225,17 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         // call later, so just get the numeric bits here
         long[] statArray = ParseUtil.parseStringToLongArray(stat, PROC_PID_STAT_ORDERS, PROC_PID_STAT_LENGTH, ' ');
         // Fetch cached process if it exists
-        OSProcess proc = processMap.get(pid);
+        OSProcess proc = new OSProcess(this);
+        proc.setProcessID(pid);
+        // The /proc/pid/cmdline value is null-delimited
+        proc.setCommandLine(FileUtil.getStringFromFile(String.format("/proc/%d/cmdline", pid)));
         long startTime = BOOT_TIME + statArray[ProcPidStat.START_TIME.ordinal()] * 1000L / USER_HZ;
         // BOOT_TIME could be up to 5ms off. In rare cases when a process has
         // started within 5ms of boot it is possible to get negative uptime.
         if (startTime >= now) {
             startTime = now - 1;
         }
-        // New process if start time differs by 200ms or more
-        if (proc == null || Math.abs(startTime - proc.getStartTime()) > 200) {
-            proc = new OSProcess();
-            proc.setProcessID(pid);
-            proc.setStartTime(startTime);
-            // The /proc/pid/cmdline value is null-delimited
-            proc.setCommandLine(FileUtil.getStringFromFile(String.format("/proc/%d/cmdline", pid)));
-            // Add or replace value in the map
-            processMap.put(pid, proc);
-        }
+        proc.setStartTime(startTime);
         proc.setParentProcessID((int) statArray[ProcPidStat.PPID.ordinal()]);
         proc.setThreadCount((int) statArray[ProcPidStat.THREAD_COUNT.ordinal()]);
         proc.setPriority((int) statArray[ProcPidStat.PRIORITY.ordinal()]);
@@ -261,6 +252,17 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         if (slowFields) {
             List<String> openFilesList = ExecutingCommand.runNative(String.format("ls -f /proc/%d/fd", pid));
             proc.setOpenFiles(openFilesList.size() - 1L);
+
+            // get 5th byte of file for 64-bit check
+            // https://en.wikipedia.org/wiki/Executable_and_Linkable_Format#File_header
+            byte[] buffer = new byte[5];
+            try (InputStream is = new FileInputStream(path)) {
+                if (is.read(buffer) == buffer.length) {
+                    proc.setBitness(buffer[4] == 1 ? 32 : 64);
+                }
+            } catch (IOException e) {
+                LOG.warn("Failed to read process file: {}", path);
+            }
         }
 
         Map<String, String> status = FileUtil.getKeyValueMapFromFile(String.format("/proc/%d/status", pid), ":");
@@ -288,11 +290,11 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         }
         proc.setUserID(ParseUtil.whitespaces.split(status.getOrDefault("Uid", ""))[0]);
         proc.setGroupID(ParseUtil.whitespaces.split(status.getOrDefault("Gid", ""))[0]);
-        OSUser user = this.userGroupInfo.getUser(proc.getUserID());
+        OSUser user = userGroupInfo.getUser(proc.getUserID());
         if (user != null) {
             proc.setUser(user.getUserName());
         }
-        proc.setGroup(this.userGroupInfo.getGroupName(proc.getGroupID()));
+        proc.setGroup(userGroupInfo.getGroupName(proc.getGroupID()));
 
         try {
             String cwdLink = String.format("/proc/%d/cwd", pid);
@@ -306,19 +308,18 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         return proc;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getChildProcesses(int parentPid, int limit, ProcessSort sort) {
         List<OSProcess> procs = new ArrayList<>();
         File[] procFiles = ProcUtil.getPidFiles();
+        LinuxUserGroupInfo userGroupInfo = new LinuxUserGroupInfo();
 
         // now for each file (with digit name) get process info
         for (File procFile : procFiles) {
             int pid = ParseUtil.parseIntOrDefault(procFile.getName(), 0);
             if (parentPid == getParentPidFromProcFile(pid)) {
-                OSProcess proc = getProcess(pid, true);
+                OSProcess proc = getProcess(pid, userGroupInfo, true);
                 if (proc != null) {
                     procs.add(proc);
                 }
@@ -334,25 +335,19 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         return (int) statArray[ProcPidStat.PPID.ordinal()];
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessId() {
-        return Libc.INSTANCE.getpid();
+        return LinuxLibc.INSTANCE.getpid();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessCount() {
         return ProcUtil.getPidFiles().length;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getThreadCount() {
         try {
@@ -368,9 +363,19 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         return 0;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemUptime() {
+        return (long) ProcUtil.getSystemUptimeSeconds();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemBootTime() {
+        return BOOTTIME;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public NetworkParams getNetworkParams() {
         return new LinuxNetworkParams();
@@ -516,8 +521,8 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
     /**
      * Attempts to read /etc/lsb-release
      *
-     * @return true if file successfully read and DISTRIB_ID or
-     *         DISTRIB_DESCRIPTION found
+     * @return true if file successfully read and DISTRIB_ID or DISTRIB_DESCRIPTION
+     *         found
      */
     private boolean readLsbRelease() {
         if (new File("/etc/lsb-release").exists()) {
@@ -548,8 +553,7 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
     /**
      * Attempts to read /etc/distrib-release (for some value of distrib)
      *
-     * @return true if file successfully read and " release " or " VERSION "
-     *         found
+     * @return true if file successfully read and " release " or " VERSION " found
      */
     private boolean readDistribRelease(String filename) {
         if (new File(filename).exists()) {
@@ -604,15 +608,14 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
         // Look for any /etc/*-release, *-version, and variants
         File etc = new File("/etc");
         // Find any *_input files in that path
-        File[] matchingFiles = etc.listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File f) {
-                return (f.getName().endsWith("-release") || f.getName().endsWith("-version")
-                        || f.getName().endsWith("_release") || f.getName().endsWith("_version"))
-                        && !(f.getName().endsWith("os-release") || f.getName().endsWith("lsb-release")
-                                || f.getName().endsWith("system-release"));
-            }
-        });
+        File[] matchingFiles = etc.listFiles(//
+                f -> (f.getName().endsWith("-release") || //
+                        f.getName().endsWith("-version") || //
+                        f.getName().endsWith("_release") || //
+                        f.getName().endsWith("_version")) //
+                        && !(f.getName().endsWith("os-release") || //
+                                f.getName().endsWith("lsb-release") || //
+                                f.getName().endsWith("system-release")));
         if (matchingFiles != null && matchingFiles.length > 0) {
             return matchingFiles[0].getPath();
         }
@@ -624,9 +627,8 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
     }
 
     /**
-     * Converts a portion of a filename (e.g. the 'redhat' in
-     * /etc/redhat-release) to a mixed case string representing the family
-     * (e.g., Red Hat)
+     * Converts a portion of a filename (e.g. the 'redhat' in /etc/redhat-release)
+     * to a mixed case string representing the family (e.g., Red Hat)
      *
      * @param name
      *            Stripped version of filename after removing /etc and -release
@@ -695,8 +697,8 @@ public class LinuxOperatingSystem extends AbstractOperatingSystem {
     }
 
     /**
-     * Gets Jiffies per second, useful for converting ticks to milliseconds and
-     * vice versa.
+     * Gets Jiffies per second, useful for converting ticks to milliseconds and vice
+     * versa.
      *
      * @return Jiffies per second.
      */

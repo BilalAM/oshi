@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.Pointer;
+import com.sun.jna.Pointer; // NOSONAR squid:S1191
 import com.sun.jna.platform.mac.SystemB;
 import com.sun.jna.platform.mac.SystemB.Statfs;
 import com.sun.jna.ptr.IntByReference;
@@ -39,6 +39,7 @@ import com.sun.jna.ptr.IntByReference;
 import oshi.jna.platform.mac.CoreFoundation;
 import oshi.jna.platform.mac.CoreFoundation.CFDictionaryRef;
 import oshi.jna.platform.mac.CoreFoundation.CFMutableDictionaryRef;
+import oshi.jna.platform.mac.CoreFoundation.CFStringRef;
 import oshi.jna.platform.mac.DiskArbitration;
 import oshi.jna.platform.mac.DiskArbitration.DADiskRef;
 import oshi.jna.platform.mac.DiskArbitration.DASessionRef;
@@ -50,12 +51,10 @@ import oshi.util.platform.mac.IOKitUtil;
 import oshi.util.platform.mac.SysctlUtil;
 
 /**
- * The Mac File System contains {@link OSFileStore}s which are a storage pool,
- * device, partition, volume, concrete file system or other implementation
- * specific means of file storage. In Mac OS X, these are found in the /Volumes
- * directory.
- *
- * @author widdis[at]gmail[dot]com
+ * The Mac File System contains {@link oshi.software.os.OSFileStore}s which are
+ * a storage pool, device, partition, volume, concrete file system or other
+ * implementation specific means of file storage. In Mac OS X, these are found
+ * in the /Volumes directory.
  */
 public class MacFileSystem implements FileSystem {
 
@@ -67,28 +66,31 @@ public class MacFileSystem implements FileSystem {
     private static final Pattern LOCAL_DISK = Pattern.compile("/dev/disk\\d");
 
     /**
-     * Gets File System Information.
+     * {@inheritDoc}
      *
-     * @return An array of {@link OSFileStore} objects representing mounted
-     *         volumes. May return disconnected volumes with
-     *         {@link OSFileStore#getTotalSpace()} = 0.
+     * Gets File System Information.
      */
     @Override
     public OSFileStore[] getFileStores() {
-        // Open a DiskArbitration session to get VolumeName of file systems with
-        // bsd names
-        DASessionRef session = DiskArbitration.INSTANCE.DASessionCreate(CfUtil.ALLOCATOR);
-        if (session == null) {
-            LOG.error("Unable to open session to DiskArbitration framework.");
-        }
-
         // List of file systems
+        List<OSFileStore> fsList = getFileStoreMatching(null);
+        return fsList.toArray(new OSFileStore[0]);
+    }
+
+    private List<OSFileStore> getFileStoreMatching(String nameToMatch) {
         List<OSFileStore> fsList = new ArrayList<>();
 
         // Use getfsstat to find fileSystems
         // Query with null to get total # required
         int numfs = SystemB.INSTANCE.getfsstat64(null, 0, 0);
         if (numfs > 0) {
+            // Open a DiskArbitration session to get VolumeName of file systems
+            // with bsd names
+            DASessionRef session = DiskArbitration.INSTANCE.DASessionCreate(CfUtil.ALLOCATOR);
+            if (session == null) {
+                LOG.error("Unable to open session to DiskArbitration framework.");
+            }
+            CFStringRef daVolumeNameKey = CFStringRef.toCFString("DAVolumeName");
 
             // Create array to hold results
             Statfs[] fs = new Statfs[numfs];
@@ -117,8 +119,19 @@ public class MacFileSystem implements FileSystem {
                 String type = new String(fs[f].f_fstypename).trim();
                 String path = new String(fs[f].f_mntonname).trim();
 
-                // Set name and uuid
                 String name = "";
+                File file = new File(path);
+                if (name.isEmpty()) {
+                    name = file.getName();
+                    // getName() for / is still blank, so:
+                    if (name.isEmpty()) {
+                        name = file.getPath();
+                    }
+                }
+                if (nameToMatch != null && !nameToMatch.equals(name)) {
+                    continue;
+                }
+
                 String uuid = "";
                 // Use volume to find DiskArbitration volume name and search for
                 // the registry entry for UUID
@@ -132,8 +145,7 @@ public class MacFileSystem implements FileSystem {
                         CFDictionaryRef diskInfo = DiskArbitration.INSTANCE.DADiskCopyDescription(disk);
                         if (diskInfo != null) {
                             // get volume name from its key
-                            Pointer volumePtr = CoreFoundation.INSTANCE.CFDictionaryGetValue(diskInfo,
-                                    CfUtil.getCFString("DAVolumeName"));
+                            Pointer volumePtr = CoreFoundation.INSTANCE.CFDictionaryGetValue(diskInfo, daVolumeNameKey);
                             name = CfUtil.cfPointerToString(volumePtr);
                             CfUtil.release(diskInfo);
                         }
@@ -161,14 +173,6 @@ public class MacFileSystem implements FileSystem {
                         IOKit.INSTANCE.IOObjectRelease(fsIter.getValue());
                     }
                 }
-                File file = new File(path);
-                if (name.isEmpty()) {
-                    name = file.getName();
-                    // getName() for / is still blank, so:
-                    if (name.isEmpty()) {
-                        name = file.getPath();
-                    }
-                }
 
                 // Add to the list
                 OSFileStore osStore = new OSFileStore();
@@ -178,25 +182,56 @@ public class MacFileSystem implements FileSystem {
                 osStore.setDescription(description);
                 osStore.setType(type);
                 osStore.setUUID(uuid);
+                osStore.setFreeSpace(file.getFreeSpace());
                 osStore.setUsableSpace(file.getUsableSpace());
                 osStore.setTotalSpace(file.getTotalSpace());
                 osStore.setFreeInodes(fs[f].f_ffree);
                 osStore.setTotalInodes(fs[f].f_files);
                 fsList.add(osStore);
             }
+            // Close DA session
+            CfUtil.release(session);
+            CfUtil.release(daVolumeNameKey);
         }
-        // Close DA session
-        CfUtil.release(session);
-        return fsList.toArray(new OSFileStore[0]);
+        return fsList;
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getOpenFileDescriptors() {
         return SysctlUtil.sysctl("kern.num_files", 0);
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getMaxFileDescriptors() {
         return SysctlUtil.sysctl("kern.maxfiles", 0);
+    }
+
+    /**
+     * <p>
+     * updateFileStoreStats.
+     * </p>
+     *
+     * @param osFileStore
+     *            a {@link oshi.software.os.OSFileStore} object.
+     * @return a boolean.
+     */
+    public static boolean updateFileStoreStats(OSFileStore osFileStore) {
+        for (OSFileStore fileStore : new MacFileSystem().getFileStoreMatching(osFileStore.getName())) {
+            if (osFileStore.getVolume().equals(fileStore.getVolume())
+                    && osFileStore.getMount().equals(fileStore.getMount())) {
+                osFileStore.setLogicalVolume(fileStore.getLogicalVolume());
+                osFileStore.setDescription(fileStore.getDescription());
+                osFileStore.setType(fileStore.getType());
+                osFileStore.setFreeSpace(fileStore.getFreeSpace());
+                osFileStore.setUsableSpace(fileStore.getUsableSpace());
+                osFileStore.setTotalSpace(fileStore.getTotalSpace());
+                osFileStore.setFreeInodes(fileStore.getFreeInodes());
+                osFileStore.setTotalInodes(fileStore.getTotalInodes());
+                return true;
+            }
+        }
+        return false;
     }
 }

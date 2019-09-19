@@ -33,11 +33,10 @@ import org.slf4j.LoggerFactory;
 import oshi.hardware.PowerSource;
 import oshi.hardware.common.AbstractPowerSource;
 import oshi.util.FileUtil;
+import oshi.util.ParseUtil;
 
 /**
  * A Power Source
- *
- * @author widdis[at]gmail[dot]com
  */
 public class LinuxPowerSource extends AbstractPowerSource {
 
@@ -47,6 +46,18 @@ public class LinuxPowerSource extends AbstractPowerSource {
 
     private static final String PS_PATH = "/sys/class/power_supply/";
 
+    /**
+     * <p>
+     * Constructor for LinuxPowerSource.
+     * </p>
+     *
+     * @param newName
+     *            a {@link java.lang.String} object.
+     * @param newRemainingCapacity
+     *            a double.
+     * @param newTimeRemaining
+     *            a double.
+     */
     public LinuxPowerSource(String newName, double newRemainingCapacity, double newTimeRemaining) {
         super(newName, newRemainingCapacity, newTimeRemaining);
         LOG.debug("Initialized LinuxPowerSource");
@@ -90,7 +101,7 @@ public class LinuxPowerSource extends AbstractPowerSource {
                     // Skip if not present
                     String[] psSplit = checkLine.split("=");
                     if (psSplit.length > 1) {
-                        isPresent = Integer.parseInt(psSplit[1]) > 0;
+                        isPresent = ParseUtil.parseIntOrDefault(psSplit[1], 0) > 0;
                     }
                     if (!isPresent) {
                         break;
@@ -106,13 +117,16 @@ public class LinuxPowerSource extends AbstractPowerSource {
                     // Remaining Capacity = energyNow / energyFull
                     String[] psSplit = checkLine.split("=");
                     if (psSplit.length > 1) {
-                        energyNow = Integer.parseInt(psSplit[1]);
+                        energyNow = ParseUtil.parseIntOrDefault(psSplit[1], 0);
                     }
                 } else if (checkLine.startsWith("POWER_SUPPLY_ENERGY_FULL")
                         || checkLine.startsWith("POWER_SUPPLY_CHARGE_FULL")) {
                     String[] psSplit = checkLine.split("=");
                     if (psSplit.length > 1) {
-                        energyFull = Integer.parseInt(psSplit[1]);
+                        energyFull = ParseUtil.parseIntOrDefault(psSplit[1], 1);
+                        if (energyFull < 1) {
+                            energyFull = 1;
+                        }
                     }
                 } else if (checkLine.startsWith("POWER_SUPPLY_STATUS")) {
                     // Check if charging
@@ -125,9 +139,9 @@ public class LinuxPowerSource extends AbstractPowerSource {
                     // Time Remaining = energyNow / powerNow (hours)
                     String[] psSplit = checkLine.split("=");
                     if (psSplit.length > 1) {
-                        powerNow = Integer.parseInt(psSplit[1]);
+                        powerNow = ParseUtil.parseIntOrDefault(psSplit[1], 1);
                     }
-                    if (powerNow <= 0) {
+                    if (powerNow < 1) {
                         isCharging = true;
                     }
                 }
@@ -139,5 +153,21 @@ public class LinuxPowerSource extends AbstractPowerSource {
         }
 
         return psList.toArray(new LinuxPowerSource[0]);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void updateAttributes() {
+        PowerSource[] psArr = getPowerSources();
+        for (PowerSource ps : psArr) {
+            if (ps.getName().equals(this.name)) {
+                this.remainingCapacity = ps.getRemainingCapacity();
+                this.timeRemaining = ps.getTimeRemaining();
+                return;
+            }
+        }
+        // Didn't find this battery
+        this.remainingCapacity = 0d;
+        this.timeRemaining = -1d;
     }
 }

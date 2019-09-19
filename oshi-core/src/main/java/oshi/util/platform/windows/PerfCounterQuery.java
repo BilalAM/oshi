@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package oshi.data.windows;
+package oshi.util.platform.windows;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -29,18 +29,20 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.platform.win32.Variant; //NOSONAR
+import com.sun.jna.platform.win32.COM.Wbemcli; //NOSONAR
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
-import oshi.util.platform.windows.PerfDataUtil;
 import oshi.util.platform.windows.PerfDataUtil.PerfCounter;
-import oshi.util.platform.windows.WmiQueryHandler;
-import oshi.util.platform.windows.WmiUtil;
 
+/**
+ * <p>
+ * PerfCounterQuery class.
+ * </p>
+ */
 public class PerfCounterQuery<T extends Enum<T>> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PerfCounter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PerfCounterQuery.class);
 
     /*
      * Set on instantiation
@@ -61,53 +63,51 @@ public class PerfCounterQuery<T extends Enum<T>> {
     /*
      * Multiple classes use these constants
      */
+    /** Constant <code>TOTAL_INSTANCE="_Total"</code> */
     public static final String TOTAL_INSTANCE = "_Total";
+    /** Constant <code>TOTAL_INSTANCES="*_Total"</code> */
     public static final String TOTAL_INSTANCES = "*_Total";
+    /** Constant <code>NOT_TOTAL_INSTANCE="^ + TOTAL_INSTANCE"</code> */
     public static final String NOT_TOTAL_INSTANCE = "^" + TOTAL_INSTANCE;
+    /** Constant <code>NOT_TOTAL_INSTANCES="^ + TOTAL_INSTANCES"</code> */
     public static final String NOT_TOTAL_INSTANCES = "^" + TOTAL_INSTANCES;
 
     /**
-     * Construct a new object to hold performance counter data source and
-     * results
-     * 
+     * Construct a new object to hold performance counter data source and results
+     *
      * @param propertyEnum
-     *            An enum which implements {@link PdhCounterProperty} and
+     *            An enum which implements
+     *            {@link oshi.util.platform.windows.PerfCounterQuery.PdhCounterProperty} and
      *            contains the WMI field (Enum value) and PDH Counter string
      *            (instance and counter)
      * @param perfObject
-     *            The PDH object for this counter; all counters on this object
-     *            will be refreshed at the same time
+     *            The PDH object for this counter; all counters on this object will
+     *            be refreshed at the same time
      * @param perfWmiClass
-     *            The WMI PerfData_RawData_* class corresponding to the PDH
-     *            object
+     *            The WMI PerfData_RawData_* class corresponding to the PDH object
      */
     public PerfCounterQuery(Class<T> propertyEnum, String perfObject, String perfWmiClass) {
         this(propertyEnum, perfObject, perfWmiClass, perfObject);
     }
 
     /**
-     * Construct a new object to hold performance counter data source and
-     * results
-     * 
+     * Construct a new object to hold performance counter data source and results
+     *
      * @param propertyEnum
-     *            An enum which implements {@link PdhCounterProperty} and
+     *            An enum which implements
+     *            {@link oshi.util.platform.windows.PerfCounterQuery.PdhCounterProperty} and
      *            contains the WMI field (Enum value) and PDH Counter string
      *            (instance and counter)
      * @param perfObject
-     *            The PDH object for this counter; all counters on this object
-     *            will be refreshed at the same time
+     *            The PDH object for this counter; all counters on this object will
+     *            be refreshed at the same time
      * @param perfWmiClass
-     *            The WMI PerfData_RawData_* class corresponding to the PDH
-     *            object
+     *            The WMI PerfData_RawData_* class corresponding to the PDH object
      * @param queryKey
      *            An optional key for PDH counter updates; defaults to the PDH
      *            object name
      */
     public PerfCounterQuery(Class<T> propertyEnum, String perfObject, String perfWmiClass, String queryKey) {
-        if (PdhCounterProperty.class.isAssignableFrom(propertyEnum.getDeclaringClass())) {
-            throw new IllegalArgumentException(
-                    propertyEnum.getClass().getName() + " must implement PdhCounterProperty.");
-        }
         this.propertyEnum = propertyEnum;
         this.perfObject = perfObject;
         this.perfWmiClass = perfWmiClass;
@@ -121,7 +121,7 @@ public class PerfCounterQuery<T extends Enum<T>> {
 
     /**
      * Set the Data Source for these counters
-     * 
+     *
      * @param source
      *            The source of data
      * @return Whether the data source was successfully set
@@ -146,9 +146,9 @@ public class PerfCounterQuery<T extends Enum<T>> {
     }
 
     /**
-     * Initialize PDH counters for this data source. Adds necessary counters to
-     * a PDH Query.
-     * 
+     * Initialize PDH counters for this data source. Adds necessary counters to a
+     * PDH Query.
+     *
      * @return True if the counters were successfully added.
      */
     protected boolean initPdhCounters() {
@@ -166,8 +166,8 @@ public class PerfCounterQuery<T extends Enum<T>> {
     }
 
     /**
-     * Uninitialize PDH counters for this data source. Removes necessary
-     * counters from the PDH Query, releasing their handles.
+     * Uninitialize PDH counters for this data source. Removes necessary counters
+     * from the PDH Query, releasing their handles.
      */
     protected void unInitPdhCounters() {
         pdhQueryHandler.removeAllCountersFromQuery(this.queryKey);
@@ -183,17 +183,17 @@ public class PerfCounterQuery<T extends Enum<T>> {
     }
 
     /**
-     * Uninitializes the WMI query object needed to retrieve counters for this
-     * data source, allowing it to be garbage collected.
+     * Uninitializes the WMI query object needed to retrieve counters for this data
+     * source, allowing it to be garbage collected.
      */
     protected void unInitWmiCounters() {
         this.counterQuery = null;
     }
 
     /**
-     * Query the current data source (PDH or WMI) for the Performance Counter
-     * values corresponding to the property enum.
-     * 
+     * Query the current data source (PDH or WMI) for the Performance Counter values
+     * corresponding to the property enum.
+     *
      * @return A map of the values by the counter enum.
      */
     public Map<T, Long> queryValues() {
@@ -232,18 +232,18 @@ public class PerfCounterQuery<T extends Enum<T>> {
         WmiResult<T> result = wmiQueryHandler.queryWMI(this.counterQuery);
         if (result.getResultCount() > 0) {
             for (T prop : props) {
-                switch (result.getVtType(prop)) {
-                case Variant.VT_I2:
+                switch (result.getCIMType(prop)) {
+                case Wbemcli.CIM_UINT16:
                     valueMap.put(prop, Long.valueOf(WmiUtil.getUint16(result, prop, 0)));
                     break;
-                case Variant.VT_I4:
+                case Wbemcli.CIM_UINT32:
                     valueMap.put(prop, WmiUtil.getUint32asLong(result, prop, 0));
                     break;
-                case Variant.VT_BSTR:
+                case Wbemcli.CIM_UINT64:
                     valueMap.put(prop, WmiUtil.getUint64(result, prop, 0));
                     break;
                 default:
-                    throw new ClassCastException("Unimplemented VT Type Mapping.");
+                    throw new ClassCastException("Unimplemented CIM Type Mapping.");
                 }
             }
         }
@@ -258,8 +258,7 @@ public class PerfCounterQuery<T extends Enum<T>> {
          */
         PDH,
         /**
-         * Performance Counter data will be pulled from a WMI PerfData_RawData_*
-         * table
+         * Performance Counter data will be pulled from a WMI PerfData_RawData_* table
          */
         WMI;
     }

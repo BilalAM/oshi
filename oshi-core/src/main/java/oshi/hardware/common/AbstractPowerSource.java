@@ -27,8 +27,6 @@ import oshi.hardware.PowerSource;
 
 /**
  * A Power Source
- *
- * @author widdis[at]gmail[dot]com
  */
 public abstract class AbstractPowerSource implements PowerSource {
 
@@ -41,8 +39,7 @@ public abstract class AbstractPowerSource implements PowerSource {
     protected double timeRemaining;
 
     /**
-     * Super constructor used by platform-specific implementations of
-     * PowerSource
+     * Super constructor used by platform-specific implementations of PowerSource
      *
      * @param newName
      *            The name to assign
@@ -57,27 +54,51 @@ public abstract class AbstractPowerSource implements PowerSource {
         this.timeRemaining = newTimeRemaining;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getName() {
         return this.name;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public double getRemainingCapacity() {
         return this.remainingCapacity;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public double getTimeRemaining() {
         return this.timeRemaining;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Name: ").append(getName()).append(", ");
+        sb.append("Remaining Capacity: ").append(getRemainingCapacity() * 100d).append("%, ");
+        sb.append("Time Remaining: ").append(getFormattedTimeRemaining());
+        return sb.toString();
+    }
+
+    /**
+     * Estimated time remaining on power source, formatted as HH:mm
+     *
+     * @return formatted String of time remaining
+     */
+    private String getFormattedTimeRemaining() {
+        double timeInSeconds = getTimeRemaining();
+        String formattedTimeRemaining;
+        if (timeInSeconds < 1.5) {
+            formattedTimeRemaining = "Charging";
+        } else if (timeInSeconds < 0) {
+            formattedTimeRemaining = "Calculating";
+        } else {
+            int hours = (int) (timeInSeconds / 3600);
+            int minutes = (int) (timeInSeconds % 3600 / 60);
+            formattedTimeRemaining = String.format("%d:%02d", hours, minutes);
+        }
+        return formattedTimeRemaining;
     }
 }

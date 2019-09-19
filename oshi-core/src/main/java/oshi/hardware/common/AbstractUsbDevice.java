@@ -29,8 +29,6 @@ import oshi.hardware.UsbDevice;
 
 /**
  * A USB device
- *
- * @author widdis[at]gmail[dot]com
  */
 public abstract class AbstractUsbDevice implements UsbDevice {
 
@@ -46,78 +44,91 @@ public abstract class AbstractUsbDevice implements UsbDevice {
 
     protected String serialNumber;
 
+    protected String uniqueDeviceId;
+
     protected UsbDevice[] connectedDevices;
 
+    /**
+     * <p>
+     * Constructor for AbstractUsbDevice.
+     * </p>
+     *
+     * @param name
+     *            a {@link java.lang.String} object.
+     * @param vendor
+     *            a {@link java.lang.String} object.
+     * @param vendorId
+     *            a {@link java.lang.String} object.
+     * @param productId
+     *            a {@link java.lang.String} object.
+     * @param serialNumber
+     *            a {@link java.lang.String} object.
+     * @param uniqueDeviceId
+     *            a {@link java.lang.String} object.
+     * @param connectedDevices
+     *            an array of {@link oshi.hardware.UsbDevice} objects.
+     */
     public AbstractUsbDevice(String name, String vendor, String vendorId, String productId, String serialNumber,
-            UsbDevice[] connectedDevices) {
+            String uniqueDeviceId, UsbDevice[] connectedDevices) {
         this.name = name;
         this.vendor = vendor;
         this.vendorId = vendorId;
         this.productId = productId;
         this.serialNumber = serialNumber;
+        this.uniqueDeviceId = uniqueDeviceId;
         this.connectedDevices = Arrays.copyOf(connectedDevices, connectedDevices.length);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getName() {
         return this.name;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getVendor() {
         return this.vendor;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getVendorId() {
         return this.vendorId;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getProductId() {
         return this.productId;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getSerialNumber() {
         return this.serialNumber;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public String getUniqueDeviceId() {
+        return this.uniqueDeviceId;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public UsbDevice[] getConnectedDevices() {
         return Arrays.copyOf(this.connectedDevices, this.connectedDevices.length);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int compareTo(UsbDevice usb) {
         // Naturally sort by device name
         return getName().compareTo(usb.getName());
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String toString() {
         return indentUsb(this, 1);
@@ -146,5 +157,4 @@ public abstract class AbstractUsbDevice implements UsbDevice {
         }
         return sb.toString();
     }
-
 }

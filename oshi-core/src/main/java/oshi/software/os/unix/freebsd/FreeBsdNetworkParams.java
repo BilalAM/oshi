@@ -31,23 +31,26 @@ import org.slf4j.LoggerFactory;
 
 import com.sun.jna.ptr.PointerByReference; // NOSONAR
 
-import oshi.jna.platform.unix.freebsd.Libc;
+import oshi.jna.platform.unix.freebsd.FreeBsdLibc;
 import oshi.software.common.AbstractNetworkParams;
 import oshi.util.ExecutingCommand;
 
+/**
+ * <p>
+ * FreeBsdNetworkParams class.
+ * </p>
+ */
 public class FreeBsdNetworkParams extends AbstractNetworkParams {
 
     private static final long serialVersionUID = 1L;
 
     private static final Logger LOG = LoggerFactory.getLogger(FreeBsdNetworkParams.class);
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getDomainName() {
-        Libc.Addrinfo hint = new Libc.Addrinfo();
-        hint.ai_flags = Libc.AI_CANONNAME;
+        FreeBsdLibc.Addrinfo hint = new FreeBsdLibc.Addrinfo();
+        hint.ai_flags = FreeBsdLibc.AI_CANONNAME;
         String hostname = "";
         try {
             hostname = InetAddress.getLocalHost().getHostName();
@@ -56,30 +59,26 @@ public class FreeBsdNetworkParams extends AbstractNetworkParams {
             return "";
         }
         PointerByReference ptr = new PointerByReference();
-        int res = Libc.INSTANCE.getaddrinfo(hostname, null, hint, ptr);
+        int res = FreeBsdLibc.INSTANCE.getaddrinfo(hostname, null, hint, ptr);
         if (res > 0) {
             if (LOG.isErrorEnabled()) {
-                LOG.error("Failed getaddrinfo(): {}", Libc.INSTANCE.gai_strerror(res));
+                LOG.error("Failed getaddrinfo(): {}", FreeBsdLibc.INSTANCE.gai_strerror(res));
             }
             return "";
         }
-        Libc.Addrinfo info = new Libc.Addrinfo(ptr.getValue());
+        FreeBsdLibc.Addrinfo info = new FreeBsdLibc.Addrinfo(ptr.getValue());
         String canonname = info.ai_canonname.trim();
-        Libc.INSTANCE.freeaddrinfo(ptr.getValue());
+        FreeBsdLibc.INSTANCE.freeaddrinfo(ptr.getValue());
         return canonname;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getIpv4DefaultGateway() {
         return searchGateway(ExecutingCommand.runNative("route -4 get default"));
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String getIpv6DefaultGateway() {
         return searchGateway(ExecutingCommand.runNative("route -6 get default"));

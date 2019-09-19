@@ -23,7 +23,11 @@
  */
 package oshi.hardware.platform.windows;
 
+import static oshi.util.Memoizer.defaultExpiration;
+import static oshi.util.Memoizer.memoize;
+
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,89 +36,80 @@ import com.sun.jna.platform.win32.Kernel32; // NOSONAR squid:S1191
 import com.sun.jna.platform.win32.Psapi;
 import com.sun.jna.platform.win32.Psapi.PERFORMANCE_INFORMATION;
 
-import oshi.data.windows.PerfCounterQuery;
-import oshi.data.windows.PerfCounterQuery.PdhCounterProperty;
 import oshi.hardware.common.AbstractVirtualMemory;
+import oshi.util.platform.windows.PerfCounterQuery;
+import oshi.util.platform.windows.PerfCounterQuery.PdhCounterProperty;
 
 /**
  * Memory obtained from WMI
  */
 public class WindowsVirtualMemory extends AbstractVirtualMemory {
 
-    private static final long serialVersionUID = 1L;
-
     private static final Logger LOG = LoggerFactory.getLogger(WindowsVirtualMemory.class);
 
-    private transient long pageSize;
-    
-    private transient PerfCounterQuery<PageSwapProperty> memoryPerfCounters = new PerfCounterQuery<>(
-            PageSwapProperty.class, "Memory", "Win32_PerfRawData_PerfOS_Memory");
-    private transient PerfCounterQuery<PagingPercentProperty> pagingPerfCounters = new PerfCounterQuery<>(
+    private final long pageSize;
+
+    private final Supplier<Long> used = memoize(this::querySwapUsed, defaultExpiration());
+
+    private final Supplier<Long> total = memoize(this::querySwapTotal, defaultExpiration());
+
+    private final Supplier<PagingFile> pagingFile = memoize(this::queryPagingFile, defaultExpiration());
+
+    private PerfCounterQuery<PageSwapProperty> memoryPerfCounters = new PerfCounterQuery<>(PageSwapProperty.class,
+            "Memory", "Win32_PerfRawData_PerfOS_Memory");
+    private PerfCounterQuery<PagingPercentProperty> pagingPerfCounters = new PerfCounterQuery<>(
             PagingPercentProperty.class, "Paging File", "Win32_PerfRawData_PerfOS_PagingFile");
 
+    /**
+     * <p>
+     * Constructor for WindowsVirtualMemory.
+     * </p>
+     *
+     * @param pageSize
+     *            The size in bites of memory pages
+     */
     public WindowsVirtualMemory(long pageSize) {
         this.pageSize = pageSize;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapUsed() {
-        if (this.swapUsed < 0) {
-            updateSwapUsed();
-        }
-        return this.swapUsed;
+        return used.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapTotal() {
-        if (this.swapTotal < 0) {
-            PERFORMANCE_INFORMATION perfInfo = new PERFORMANCE_INFORMATION();
-            if (!Psapi.INSTANCE.GetPerformanceInfo(perfInfo, perfInfo.size())) {
-                LOG.error("Failed to get Performance Info. Error code: {}", Kernel32.INSTANCE.GetLastError());
-                return 0L;
-            }
-            this.swapTotal = this.pageSize
-                    * (perfInfo.CommitLimit.longValue() - perfInfo.PhysicalTotal.longValue());
-        }
-        return this.swapTotal;
+        return total.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapPagesIn() {
-        if (this.swapPagesIn < 0) {
-            updateSwapInOut();
-        }
-        return this.swapPagesIn;
+        return pagingFile.get().pagesIn;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapPagesOut() {
-        if (this.swapPagesOut < 0) {
-            updateSwapInOut();
-        }
-        return this.swapPagesOut;
+        return pagingFile.get().pagesOut;
     }
 
-    private void updateSwapInOut() {
-        Map<PageSwapProperty, Long> valueMap = this.memoryPerfCounters.queryValues();
-        this.swapPagesIn = valueMap.getOrDefault(PageSwapProperty.PAGESINPUTPERSEC, 0L);
-        this.swapPagesOut = valueMap.getOrDefault(PageSwapProperty.PAGESOUTPUTPERSEC, 0L);
-    }
-
-    private void updateSwapUsed() {
+    private long querySwapUsed() {
         Map<PagingPercentProperty, Long> valueMap = this.pagingPerfCounters.queryValues();
-        this.swapUsed = valueMap.getOrDefault(PagingPercentProperty.PERCENTUSAGE, 0L) * this.pageSize;
+        return valueMap.getOrDefault(PagingPercentProperty.PERCENTUSAGE, 0L) * this.pageSize;
+    }
+
+    private long querySwapTotal() {
+        PERFORMANCE_INFORMATION perfInfo = new PERFORMANCE_INFORMATION();
+        if (!Psapi.INSTANCE.GetPerformanceInfo(perfInfo, perfInfo.size())) {
+            LOG.error("Failed to get Performance Info. Error code: {}", Kernel32.INSTANCE.GetLastError());
+            return 0L;
+        }
+        return this.pageSize * (perfInfo.CommitLimit.longValue() - perfInfo.PhysicalTotal.longValue());
+    }
+
+    private PagingFile queryPagingFile() {
+        Map<PageSwapProperty, Long> valueMap = this.memoryPerfCounters.queryValues();
+        return new PagingFile(valueMap.getOrDefault(PageSwapProperty.PAGESINPUTPERSEC, 0L),
+                valueMap.getOrDefault(PageSwapProperty.PAGESOUTPUTPERSEC, 0L));
     }
 
     /*
@@ -177,6 +172,16 @@ public class WindowsVirtualMemory extends AbstractVirtualMemory {
         @Override
         public String getCounter() {
             return counter;
+        }
+    }
+
+    private static final class PagingFile {
+        private final long pagesIn;
+        private final long pagesOut;
+
+        private PagingFile(long pagesIn, long pagesOut) {
+            this.pagesIn = pagesIn;
+            this.pagesOut = pagesOut;
         }
     }
 }

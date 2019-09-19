@@ -30,7 +30,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.Memory;
+import com.sun.jna.Memory; // NOSONAR squid:s1191
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.mac.SystemB;
@@ -39,6 +39,7 @@ import com.sun.jna.platform.mac.SystemB.Passwd;
 import com.sun.jna.platform.mac.SystemB.ProcTaskAllInfo;
 import com.sun.jna.platform.mac.SystemB.ProcTaskInfo;
 import com.sun.jna.platform.mac.SystemB.RUsageInfoV2;
+import com.sun.jna.platform.mac.SystemB.Timeval;
 import com.sun.jna.platform.mac.SystemB.VnodePathInfo;
 import com.sun.jna.ptr.IntByReference;
 
@@ -50,6 +51,11 @@ import oshi.util.ExecutingCommand;
 import oshi.util.ParseUtil;
 import oshi.util.platform.mac.SysctlUtil;
 
+/**
+ * <p>
+ * MacOperatingSystem class.
+ * </p>
+ */
 public class MacOperatingSystem extends AbstractOperatingSystem {
 
     private static final long serialVersionUID = 1L;
@@ -57,6 +63,9 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
     private static final Logger LOG = LoggerFactory.getLogger(MacOperatingSystem.class);
 
     private int maxProc = 1024;
+
+    // 64-bit flag
+    private static final int P_LP64 = 0x4;
     /*
      * OS X States:
      */
@@ -68,6 +77,28 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
                                         // termination
     private static final int SSTOP = 6; // process being traced
 
+    private static final long BOOTTIME;
+    static {
+        Timeval tv = new Timeval();
+        if (!SysctlUtil.sysctl("kern.boottime", tv) || tv.tv_sec.longValue() == 0L) {
+            // Usually this works. If it doesn't, fall back to text parsing.
+            // Boot time will be the first consecutive string of digits.
+            BOOTTIME = ParseUtil.parseLongOrDefault(
+                    ExecutingCommand.getFirstAnswer("sysctl -n kern.boottime").split(",")[0].replaceAll("\\D", ""),
+                    System.currentTimeMillis() / 1000);
+        } else {
+            // tv now points to a 64-bit timeval structure for boot time.
+            // First 4 bytes are seconds, second 4 bytes are microseconds
+            // (we ignore)
+            BOOTTIME = tv.tv_sec.longValue();
+        }
+    }
+
+    /**
+     * <p>
+     * Constructor for MacOperatingSystem.
+     * </p>
+     */
     public MacOperatingSystem() {
         this.manufacturer = "Apple";
         this.version = new MacOSVersionInfoEx();
@@ -89,17 +120,13 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public FileSystem getFileSystem() {
         return new MacFileSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getProcesses(int limit, ProcessSort sort, boolean slowFields) {
         List<OSProcess> procs = new ArrayList<>();
@@ -122,15 +149,13 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         return sorted.toArray(new OSProcess[0]);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess getProcess(int pid) {
         return getProcess(pid, true);
     }
 
-    private OSProcess getProcess(int pid, boolean slowFields) {
+    private OSProcess getProcess(int pid, boolean slowFields) { // NOSONAR squid:S1172
         ProcTaskAllInfo taskAllInfo = new ProcTaskAllInfo();
         if (0 > SystemB.INSTANCE.proc_pidinfo(pid, SystemB.PROC_PIDTASKALLINFO, 0, taskAllInfo, taskAllInfo.size())) {
             return null;
@@ -170,7 +195,7 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
             }
         }
         long now = System.currentTimeMillis();
-        OSProcess proc = new OSProcess();
+        OSProcess proc = new OSProcess(this);
         proc.setName(name);
         proc.setPath(path);
         switch (taskAllInfo.pbsd.pbi_status) {
@@ -215,8 +240,8 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         proc.setBytesRead(bytesRead);
         proc.setBytesWritten(bytesWritten);
         proc.setCommandLine(getCommandLine(pid));
-        // gets the open files count
         proc.setOpenFiles(taskAllInfo.pbsd.pbi_nfiles);
+        proc.setBitness((taskAllInfo.pbsd.pbi_flags & P_LP64) == 0 ? 32 : 64);
 
         VnodePathInfo vpi = new VnodePathInfo();
         if (0 < SystemB.INSTANCE.proc_pidinfo(pid, SystemB.PROC_PIDVNODEPATHINFO, 0, vpi, vpi.size())) {
@@ -232,9 +257,7 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         return proc;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public OSProcess[] getChildProcesses(int parentPid, int limit, ProcessSort sort) {
         List<OSProcess> procs = new ArrayList<>();
@@ -278,7 +301,9 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         IntByReference size = new IntByReference(argmax);
         // Fetch arguments
         if (0 != SystemB.INSTANCE.sysctl(mib, mib.length, procargs, size, null, 0)) {
-            LOG.error("Failed syctl call: kern.procargs2, Error code: {}", Native.getLastError());
+            LOG.warn(
+                    "Failed syctl call for process arguments (kern.procargs2), process {} may not exist. Error code: {}",
+                    pid, Native.getLastError());
             return "";
         }
         // Procargs contains an int representing total # of args, followed by a
@@ -315,33 +340,25 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         return String.join("\0", args);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public MacOSVersionInfoEx getVersion() {
         return (MacOSVersionInfoEx) this.version;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessId() {
         return SystemB.INSTANCE.getpid();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getProcessCount() {
         return SystemB.INSTANCE.proc_listpids(SystemB.PROC_ALL_PIDS, 0, null, 0) / SystemB.INT_SIZE;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public int getThreadCount() {
         // Get current pids, then slightly pad in case new process starts while
@@ -358,9 +375,19 @@ public class MacOperatingSystem extends AbstractOperatingSystem {
         return numberOfThreads;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemUptime() {
+        return System.currentTimeMillis() / 1000 - BOOTTIME;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public long getSystemBootTime() {
+        return BOOTTIME;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public NetworkParams getNetworkParams() {
         return new MacNetworkParams();

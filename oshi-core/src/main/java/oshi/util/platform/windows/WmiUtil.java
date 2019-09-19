@@ -23,22 +23,27 @@
  */
 package oshi.util.platform.windows;
 
+import java.time.OffsetDateTime;
+
 import com.sun.jna.platform.win32.Variant; // NOSONAR
 import com.sun.jna.platform.win32.COM.Wbemcli;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
+import oshi.util.Constants;
 import oshi.util.ParseUtil;
 
 /**
  * Helper class for WMI
- *
- * @author widdis[at]gmail[dot]com
  */
 public class WmiUtil {
 
-    // Not a built in manespace, failed connections are normal and don't need
-    // error logging
+    /**
+     * The namespace where Open Hardware Monitor publishes to WMI,
+     * <code>OHM_NAMESPACE="ROOT\\OpenHardwareMonitor"</code>. This namespace is not
+     * built-in to WMI, so if OHM is not running would result in unnecessary log
+     * messages.
+     */
     public static final String OHM_NAMESPACE = "ROOT\\OpenHardwareMonitor";
 
     private static final String CLASS_CAST_MSG = "%s is not a %s type. CIM Type is %d and VT type is %d";
@@ -51,9 +56,10 @@ public class WmiUtil {
 
     /**
      * Translate a WmiQuery to the actual query string
-     * 
+     *
      * @param <T>
-     *            The properties enum
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param query
      *            The WmiQuery object
      * @return The string that is queried in WMI
@@ -73,7 +79,8 @@ public class WmiUtil {
      * Gets a String value from a WmiResult
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -91,10 +98,11 @@ public class WmiUtil {
     }
 
     /**
-     * Gets a Date value from a WmiResult as a String
+     * Gets a Date value from a WmiResult as a String in ISO 8601 format
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -104,9 +112,32 @@ public class WmiUtil {
      * @return The stored value if non-null, an empty-string otherwise
      */
     public static <T extends Enum<T>> String getDateString(WmiResult<T> result, T property, int index) {
+        OffsetDateTime dateTime = getDateTime(result, property, index);
+        // Null result returns the Epoch
+        if (dateTime.equals(Constants.UNIX_EPOCH)) {
+            return "";
+        }
+        return dateTime.toLocalDate().toString();
+    }
+
+    /**
+     * Gets a DateTime value from a WmiResult as an OffsetDateTime
+     *
+     * @param <T>
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
+     * @param result
+     *            The WmiResult from which to fetch the value
+     * @param property
+     *            The property (column) to fetch
+     * @param index
+     *            The index (row) to fetch
+     * @return The stored value if non-null, otherwise the constant
+     *         {@link oshi.util.Constants#UNIX_EPOCH}
+     */
+    public static <T extends Enum<T>> OffsetDateTime getDateTime(WmiResult<T> result, T property, int index) {
         if (result.getCIMType(property) == Wbemcli.CIM_DATETIME) {
-            String date = getStr(result, property, index);
-            return date.substring(0, 4) + '-' + date.substring(4, 6) + '-' + date.substring(6, 8);
+            return ParseUtil.parseCimDateTimeToOffset(getStr(result, property, index));
         }
         throw new ClassCastException(String.format(CLASS_CAST_MSG, property.name(), "DateTime",
                 result.getCIMType(property), result.getVtType(property)));
@@ -116,7 +147,8 @@ public class WmiUtil {
      * Gets a Reference value from a WmiResult as a String
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -145,12 +177,13 @@ public class WmiUtil {
     }
 
     /**
-     * Gets a Uint64 value from a WmiResult (parsing the String). Note that
-     * while the CIM type is unsigned, the return type is signed and the parsing
-     * will exclude any return values above Long.MAX_VALUE.
+     * Gets a Uint64 value from a WmiResult (parsing the String). Note that while
+     * the CIM type is unsigned, the return type is signed and the parsing will
+     * exclude any return values above Long.MAX_VALUE.
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -171,12 +204,13 @@ public class WmiUtil {
     }
 
     /**
-     * Gets an UINT32 value from a WmiResult. Note that while a UINT32 CIM type
-     * is unsigned, the return type is signed and requires further processing by
-     * the user if unsigned values are desired.
+     * Gets an UINT32 value from a WmiResult. Note that while a UINT32 CIM type is
+     * unsigned, the return type is signed and requires further processing by the
+     * user if unsigned values are desired.
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -194,11 +228,11 @@ public class WmiUtil {
     }
 
     /**
-     * Gets an UINT32 value from a WmiResult as a long, preserving the
-     * unsignedness.
+     * Gets an UINT32 value from a WmiResult as a long, preserving the unsignedness.
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -217,11 +251,12 @@ public class WmiUtil {
 
     /**
      * Gets a Sint32 value from a WmiResult. Note that while the CIM type is
-     * unsigned, the return type is signed and requires further processing by
-     * the user if unsigned values are desired.
+     * unsigned, the return type is signed and requires further processing by the
+     * user if unsigned values are desired.
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -240,11 +275,12 @@ public class WmiUtil {
 
     /**
      * Gets a Uint16 value from a WmiResult. Note that while the CIM type is
-     * unsigned, the return type is signed and requires further processing by
-     * the user if unsigned values are desired.
+     * unsigned, the return type is signed and requires further processing by the
+     * user if unsigned values are desired.
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property
@@ -276,7 +312,8 @@ public class WmiUtil {
      * Gets a Float value from a WmiResult
      *
      * @param <T>
-     *            The enum type containing the property keys
+     *            WMI queries use an Enum to identify the fields to query, and use
+     *            the enum values as keys to retrieve the results.
      * @param result
      *            The WmiResult from which to fetch the value
      * @param property

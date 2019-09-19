@@ -23,57 +23,54 @@
  */
 package oshi.hardware.platform.unix.freebsd;
 
-import com.sun.jna.Memory;
+import com.sun.jna.Memory; // NOSONAR squid:S1191
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 
-import oshi.hardware.Sensors;
-import oshi.jna.platform.unix.freebsd.Libc;
+import oshi.hardware.common.AbstractSensors;
+import oshi.jna.platform.unix.freebsd.FreeBsdLibc;
 
-public class FreeBsdSensors implements Sensors {
+/**
+ * <p>
+ * FreeBsdSensors class.
+ * </p>
+ */
+public class FreeBsdSensors extends AbstractSensors {
 
-    private static final long serialVersionUID = 1L;
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public double getCpuTemperature() {
-        // Try with kldload coretemp
-        double sumTemp = 0d;
-        int cpu = 0;
+    public double queryCpuTemperature() {
+        return queryKldloadCoretemp();
+    }
+
+    /*
+     * If user has loaded coretemp module via kldload coretemp, sysctl call will
+     * return temperature
+     * 
+     * @return Tempurature if successful, otherwise NaN
+     */
+    private double queryKldloadCoretemp() {
         String name = "dev.cpu.%d.temperature";
-        while (true) {
-            IntByReference size = new IntByReference(Libc.INT_SIZE);
-            Pointer p = new Memory(size.getValue());
-            if (0 != Libc.INSTANCE.sysctlbyname(String.format(name, cpu), p, size, null, 0)) {
-                break;
-            }
+        IntByReference size = new IntByReference(FreeBsdLibc.INT_SIZE);
+        Pointer p = new Memory(size.getValue());
+        int cpu = 0;
+        double sumTemp = 0d;
+        while (0 == FreeBsdLibc.INSTANCE.sysctlbyname(String.format(name, cpu), p, size, null, 0)) {
             sumTemp += p.getInt(0) / 10d - 273.15;
             cpu++;
         }
-        if (cpu > 0) {
-            return sumTemp / cpu;
-        }
-        // TODO try other ways here
-        return 0d;
+        return cpu > 0 ? sumTemp / cpu : Double.NaN;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public int[] getFanSpeeds() {
-        // TODO try common software
+    public int[] queryFanSpeeds() {
+        // Nothing known on FreeBSD for this.
         return new int[0];
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public double getCpuVoltage() {
-        // TODO try common software
+    public double queryCpuVoltage() {
+        // Nothing known on FreeBSD for this.
         return 0d;
     }
 }

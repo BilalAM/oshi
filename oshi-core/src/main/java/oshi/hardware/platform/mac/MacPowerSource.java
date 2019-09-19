@@ -43,8 +43,6 @@ import oshi.util.platform.mac.CfUtil;
 
 /**
  * A Power Source
- *
- * @author widdis[at]gmail[dot]com
  */
 public class MacPowerSource extends AbstractPowerSource {
 
@@ -52,6 +50,18 @@ public class MacPowerSource extends AbstractPowerSource {
 
     private static final Logger LOG = LoggerFactory.getLogger(MacPowerSource.class);
 
+    /**
+     * <p>
+     * Constructor for MacPowerSource.
+     * </p>
+     *
+     * @param newName
+     *            a {@link java.lang.String} object.
+     * @param newRemainingCapacity
+     *            a double.
+     * @param newTimeRemaining
+     *            a double.
+     */
     public MacPowerSource(String newName, double newRemainingCapacity, double newTimeRemaining) {
         super(newName, newRemainingCapacity, newTimeRemaining);
         LOG.debug("Initialized MacPowerSource");
@@ -114,5 +124,21 @@ public class MacPowerSource extends AbstractPowerSource {
         CoreFoundation.INSTANCE.CFRelease(powerSourcesInfo);
 
         return psList.toArray(new MacPowerSource[0]);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void updateAttributes() {
+        PowerSource[] psArr = getPowerSources();
+        for (PowerSource ps : psArr) {
+            if (ps.getName().equals(this.name)) {
+                this.remainingCapacity = ps.getRemainingCapacity();
+                this.timeRemaining = ps.getTimeRemaining();
+                return;
+            }
+        }
+        // Didn't find this battery
+        this.remainingCapacity = 0d;
+        this.timeRemaining = -1d;
     }
 }

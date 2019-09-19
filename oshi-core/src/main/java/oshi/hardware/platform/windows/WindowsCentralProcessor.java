@@ -33,34 +33,33 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.Memory;
-import com.sun.jna.Native; // NOSONAR squid:S1191
+import com.sun.jna.Memory; // NOSONAR squid:S1191
+import com.sun.jna.Native;
 import com.sun.jna.platform.win32.Advapi32Util;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
+import com.sun.jna.platform.win32.VersionHelpers;
 import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinBase.SYSTEM_INFO;
+import com.sun.jna.platform.win32.WinNT;
+import com.sun.jna.platform.win32.WinNT.GROUP_AFFINITY;
 import com.sun.jna.platform.win32.WinNT.LOGICAL_PROCESSOR_RELATIONSHIP;
+import com.sun.jna.platform.win32.WinNT.NUMA_NODE_RELATIONSHIP;
+import com.sun.jna.platform.win32.WinNT.PROCESSOR_RELATIONSHIP;
 import com.sun.jna.platform.win32.WinNT.SYSTEM_LOGICAL_PROCESSOR_INFORMATION;
+import com.sun.jna.platform.win32.WinNT.SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX;
 import com.sun.jna.platform.win32.WinReg;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiQuery;
 import com.sun.jna.platform.win32.COM.WbemcliUtil.WmiResult;
 
-import oshi.data.windows.PerfCounterQuery;
-import oshi.data.windows.PerfCounterQuery.PdhCounterProperty;
-import oshi.data.windows.PerfCounterWildcardQuery;
-import oshi.data.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 import oshi.hardware.common.AbstractCentralProcessor;
-import oshi.jna.platform.windows.Kernel32;
-import oshi.jna.platform.windows.Kernel32Util;
 import oshi.jna.platform.windows.PowrProf;
-import oshi.jna.platform.windows.PowrProf.POWER_INFORMATION_LEVEL;
 import oshi.jna.platform.windows.PowrProf.ProcessorPowerInformation;
-import oshi.jna.platform.windows.VersionHelpers;
-import oshi.jna.platform.windows.WinNT;
-import oshi.jna.platform.windows.WinNT.GROUP_AFFINITY;
-import oshi.jna.platform.windows.WinNT.NUMA_NODE_RELATIONSHIP;
-import oshi.jna.platform.windows.WinNT.PROCESSOR_RELATIONSHIP;
-import oshi.jna.platform.windows.WinNT.SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX;
 import oshi.util.ParseUtil;
+import oshi.util.platform.windows.PerfCounterQuery;
+import oshi.util.platform.windows.PerfCounterQuery.PdhCounterProperty;
+import oshi.util.platform.windows.PerfCounterWildcardQuery;
+import oshi.util.platform.windows.PerfCounterWildcardQuery.PdhCounterWildcardProperty;
 import oshi.util.platform.windows.WmiQueryHandler;
 import oshi.util.platform.windows.WmiUtil;
 
@@ -70,11 +69,7 @@ import oshi.util.platform.windows.WmiUtil;
  */
 public class WindowsCentralProcessor extends AbstractCentralProcessor {
 
-    private static final long serialVersionUID = 1L;
-
     private static final Logger LOG = LoggerFactory.getLogger(WindowsCentralProcessor.class);
-
-    private static final boolean IS_VISTA_OR_GREATER = VersionHelpers.IsWindowsVistaOrGreater();
 
     private static final String PROCESSOR = "Processor";
 
@@ -103,27 +98,21 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
             this.counter = counter;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getCounter() {
             return counter;
         }
     }
 
-    private final transient PerfCounterWildcardQuery<ProcessorTickCountProperty> processorTickPerfCounters = 
-            VersionHelpers.IsWindows7OrGreater() ?
-                    new PerfCounterWildcardQuery<>(
-                            ProcessorTickCountProperty.class, "Processor Information",
+    private final PerfCounterWildcardQuery<ProcessorTickCountProperty> processorTickPerfCounters = VersionHelpers
+            .IsWindows7OrGreater()
+                    ? new PerfCounterWildcardQuery<>(ProcessorTickCountProperty.class, "Processor Information",
                             // NAME field includes NUMA nodes
                             "Win32_PerfRawData_Counters_ProcessorInformation WHERE NOT Name LIKE\"%_Total\"",
                             "Processor Tick Count")
-                    : new PerfCounterWildcardQuery<>(
-                            ProcessorTickCountProperty.class, PROCESSOR,
+                    : new PerfCounterWildcardQuery<>(ProcessorTickCountProperty.class, PROCESSOR,
                             // Older systems just have processor # in name
-                            "Win32_PerfRawData_PerfOS_Processor WHERE NOT Name=\"_Total\"",
-                            "Processor Tick Count");
+                            "Win32_PerfRawData_PerfOS_Processor WHERE NOT Name=\"_Total\"", "Processor Tick Count");
 
     enum SystemTickCountProperty implements PdhCounterProperty {
         PERCENTDPCTIME(PerfCounterQuery.TOTAL_INSTANCE, "% DPC Time"), //
@@ -137,24 +126,18 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
             this.counter = counter;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getInstance() {
             return instance;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getCounter() {
             return counter;
         }
     }
 
-    private final transient PerfCounterQuery<SystemTickCountProperty> systemTickPerfCounters = new PerfCounterQuery<>(
+    private final PerfCounterQuery<SystemTickCountProperty> systemTickPerfCounters = new PerfCounterQuery<>(
             SystemTickCountProperty.class, PROCESSOR, "Win32_PerfRawData_PerfOS_Processor WHERE Name=\"_Total\"",
             "System Tick Count");
 
@@ -169,24 +152,18 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
             this.counter = counter;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getInstance() {
             return instance;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getCounter() {
             return counter;
         }
     }
 
-    private final transient PerfCounterQuery<InterruptsProperty> interruptsPerfCounters = new PerfCounterQuery<>(
+    private final PerfCounterQuery<InterruptsProperty> interruptsPerfCounters = new PerfCounterQuery<>(
             InterruptsProperty.class, PROCESSOR, "Win32_PerfRawData_PerfOS_Processor WHERE Name=\"_Total\"",
             "Interrupt Count");
 
@@ -204,72 +181,124 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
             this.counter = counter;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getInstance() {
             return instance;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public String getCounter() {
             return counter;
         }
     }
 
-    private final transient PerfCounterQuery<ContextSwitchProperty> contextSwitchPerfCounters = new PerfCounterQuery<>(
+    private final PerfCounterQuery<ContextSwitchProperty> contextSwitchPerfCounters = new PerfCounterQuery<>(
             ContextSwitchProperty.class, "System", "Win32_PerfRawData_PerfOS_System");
 
-    /**
-     * Create a Processor
-     */
-    public WindowsCentralProcessor() {
-        super();
+    // Requires Win7 or greater
+    enum ProcessorFrequencyProperty implements PdhCounterWildcardProperty {
+        // First element defines WMI instance name field and PDH instance filter
+        Name(PerfCounterQuery.NOT_TOTAL_INSTANCES),
+        // Remaining elements define counters
+        PercentofMaximumFrequency("% of Maximum Frequency");
 
-        // Initialize class variables
-        initVars();
+        private final String counter;
 
-        LOG.debug("Initialized Processor");
+        ProcessorFrequencyProperty(String counter) {
+            this.counter = counter;
+        }
+
+        @Override
+        public String getCounter() {
+            return counter;
+        }
     }
+
+    // Requires Win7 or greater
+    private final PerfCounterWildcardQuery<ProcessorFrequencyProperty> processorFrequencyCounters = new PerfCounterWildcardQuery<>(
+            ProcessorFrequencyProperty.class, "Processor Information",
+            // NAME field includes NUMA nodes
+            "Win32_PerfRawData_Counters_ProcessorInformation WHERE NOT Name LIKE\"%_Total\"", "Processor Frequency");
 
     /**
      * Initializes Class variables
      */
-    private void initVars() {
+    @Override
+    protected ProcessorIdentifier queryProcessorId() {
+        String cpuVendor = "";
+        String cpuName = "";
+        String cpuIdentifier = "";
+        String cpuFamily = "";
+        String cpuModel = "";
+        String cpuStepping = "";
+        String processorID;
+        boolean cpu64bit = false;
+
         final String cpuRegistryRoot = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\";
         String[] processorIds = Advapi32Util.registryGetKeys(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryRoot);
         if (processorIds.length > 0) {
             String cpuRegistryPath = cpuRegistryRoot + processorIds[0];
-            setVendor(Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryPath,
-                    "VendorIdentifier"));
-            setName(Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryPath,
-                    "ProcessorNameString"));
-            setIdentifier(
-                    Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryPath, "Identifier"));
+            cpuVendor = Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryPath,
+                    "VendorIdentifier");
+            cpuName = Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryPath,
+                    "ProcessorNameString");
+            cpuIdentifier = Advapi32Util.registryGetStringValue(WinReg.HKEY_LOCAL_MACHINE, cpuRegistryPath,
+                    "Identifier");
+        }
+        if (!cpuIdentifier.isEmpty()) {
+            cpuFamily = parseIdentifier(cpuIdentifier, "Family");
+            cpuModel = parseIdentifier(cpuIdentifier, "Model");
+            cpuStepping = parseIdentifier(cpuIdentifier, "Stepping");
         }
         SYSTEM_INFO sysinfo = new SYSTEM_INFO();
         Kernel32.INSTANCE.GetNativeSystemInfo(sysinfo);
-        if (sysinfo.processorArchitecture.pi.wProcessorArchitecture.intValue() == 9 // PROCESSOR_ARCHITECTURE_AMD64
-                || sysinfo.processorArchitecture.pi.wProcessorArchitecture.intValue() == 6) { // PROCESSOR_ARCHITECTURE_IA64
-            setCpu64(true);
-        } else if (sysinfo.processorArchitecture.pi.wProcessorArchitecture.intValue() == 0) { // PROCESSOR_ARCHITECTURE_INTEL
-            setCpu64(false);
+        int processorArchitecture = sysinfo.processorArchitecture.pi.wProcessorArchitecture.intValue();
+        // JNA reads wrong union member. Temporarily override.
+        // See https://github.com/java-native-access/jna/pull/1134
+        if (sysinfo.processorArchitecture.dwOemID.intValue() > 0) {
+            processorArchitecture = sysinfo.processorArchitecture.dwOemID.intValue() & 0xffff;
+        }
+        if (processorArchitecture == 9 // PROCESSOR_ARCHITECTURE_AMD64
+                || processorArchitecture == 12 // PROCESSOR_ARCHITECTURE_ARM64
+                || processorArchitecture == 6) { // PROCESSOR_ARCHITECTURE_IA64
+            cpu64bit = true;
         }
 
         WmiQuery<ProcessorProperty> processorIdQuery = new WmiQuery<>("Win32_Processor", ProcessorProperty.class);
         WmiResult<ProcessorProperty> processorId = WmiQueryHandler.createInstance().queryWMI(processorIdQuery);
         if (processorId.getResultCount() > 0) {
-            setProcessorID(WmiUtil.getString(processorId, ProcessorProperty.PROCESSORID, 0));
+            processorID = WmiUtil.getString(processorId, ProcessorProperty.PROCESSORID, 0);
+        } else {
+            processorID = createProcessorID(cpuStepping, cpuModel, cpuFamily,
+                    cpu64bit ? new String[] { "ia64" } : new String[0]);
         }
+
+        return new ProcessorIdentifier(cpuVendor, cpuName, cpuFamily, cpuModel, cpuStepping, processorID, cpu64bit);
     }
 
     /**
-     * Updates logical and physical processor counts
+     * Parses identifier string
+     *
+     * @param identifier
+     *            the full identifier string
+     * @param key
+     *            the key to retrieve
+     * @return the string following id
      */
+    private String parseIdentifier(String identifier, String key) {
+        String[] idSplit = ParseUtil.whitespaces.split(identifier);
+        boolean found = false;
+        for (String s : idSplit) {
+            // If key string found, return next value
+            if (found) {
+                return s;
+            }
+            found = s.equals(key);
+        }
+        // If key string not found, return empty string
+        return "";
+    }
+
     @Override
     protected LogicalProcessor[] initProcessorCounts() {
         if (VersionHelpers.IsWindows7OrGreater()) {
@@ -338,9 +367,6 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
             numaNodeProcToLogicalProcMap
                     .put(String.format("%d,%d", logProc.getNumaNode(), logProc.getProcessorNumber()), lp++);
         }
-        this.logicalProcessorCount = logProcs.size();
-        this.physicalProcessorCount = cores.size();
-        this.physicalPackageCount = packages.size();
         return logProcs.toArray(new LogicalProcessor[0]);
     }
 
@@ -373,6 +399,7 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         }
         return 0;
     }
+
     private LogicalProcessor[] getLogicalProcessorInformation() {
         // Collect a list of logical processors on each physical core and
         // package. These will be 64-bit bitmasks.
@@ -386,8 +413,6 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
                 coreMaskList.add(proc.processorMask.longValue());
             }
         }
-        this.physicalProcessorCount = coreMaskList.size();
-        this.physicalPackageCount = packageMaskList.size();
         // Sort the list (natural ordering) so core and package numbers
         // increment as expected.
         coreMaskList.sort(null);
@@ -395,7 +420,7 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
 
         // Assign logical processors to cores and packages
         List<LogicalProcessor> logProcs = new ArrayList<>();
-        for (int core = 0; core < this.physicalProcessorCount; core++) {
+        for (int core = 0; core < coreMaskList.size(); core++) {
             long coreMask = coreMaskList.get(core);
             // Lowest and Highest set bits, indexing from 0
             int lowBit = Long.numberOfTrailingZeros(coreMask);
@@ -409,13 +434,12 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
                 }
             }
         }
-        this.logicalProcessorCount = logProcs.size();
         return logProcs.toArray(new LogicalProcessor[0]);
     }
 
     /**
      * Iterate over the package mask list and find a matching mask index
-     * 
+     *
      * @param packageMaskList
      *            The list of bitmasks to iterate
      * @param logProc
@@ -431,10 +455,6 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         return 0;
     }
 
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long[] querySystemCpuLoadTicks() {
         long[] ticks = new long[TickType.values().length];
@@ -467,17 +487,32 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         return ticks;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long[] queryCurrentFreq() {
+        if (VersionHelpers.IsWindows7OrGreater()) {
+            Map<ProcessorFrequencyProperty, List<Long>> valueMap = this.processorFrequencyCounters
+                    .queryValuesWildcard();
+            List<String> instances = this.processorTickPerfCounters.getInstancesFromLastQuery();
+            List<Long> percentMaxList = valueMap.get(ProcessorFrequencyProperty.PercentofMaximumFrequency);
+            if (!instances.isEmpty()) {
+                long maxFreq = this.getMaxFreq();
+                long[] freqs = new long[getLogicalProcessorCount()];
+                for (int p = 0; p < instances.size(); p++) {
+                    int cpu = instances.get(p).contains(",")
+                            ? numaNodeProcToLogicalProcMap.getOrDefault(instances.get(p), 0)
+                            : ParseUtil.parseIntOrDefault(instances.get(p), 0);
+                    if (cpu >= getLogicalProcessorCount()) {
+                        continue;
+                    }
+                    freqs[cpu] = percentMaxList.get(cpu) * maxFreq / 100L;
+                }
+                return freqs;
+            }
+        }
+        // If <Win7 or anything failed in PDH/WMI, use the native call
         return queryNTPower(2); // Current is field index 2
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long queryMaxFreq() {
         long[] freqs = queryNTPower(1); // Max is field index 1
@@ -487,7 +522,7 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
     /**
      * Call CallNTPowerInformation for Processor information and return an array
      * of the specified index
-     * 
+     *
      * @param fieldIndex
      *            The field, in order as defined in the
      *            {@link PowrProf#PROCESSOR_INFORMATION} structure.
@@ -498,8 +533,8 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         long[] freqs = new long[getLogicalProcessorCount()];
         int bufferSize = ppi.size() * freqs.length;
         Memory mem = new Memory(bufferSize);
-        if (0 != PowrProf.INSTANCE.CallNtPowerInformation(POWER_INFORMATION_LEVEL.PROCESSOR_INFORMATION, null, 0, mem,
-                bufferSize)) {
+        if (0 != PowrProf.INSTANCE.CallNtPowerInformation(PowrProf.POWER_INFORMATION_LEVEL.ProcessorInformation, null,
+                0, mem, bufferSize)) {
             LOG.error("Unable to get Processor Information");
             Arrays.fill(freqs, -1L);
             return freqs;
@@ -517,9 +552,6 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         return freqs;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public double[] getSystemLoadAverage(int nelem) {
         if (nelem < 1 || nelem > 3) {
@@ -533,9 +565,6 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         return average;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long[][] queryProcessorCpuLoadTicks() {
         Map<ProcessorTickCountProperty, List<Long>> valueMap = this.processorTickPerfCounters.queryValuesWildcard();
@@ -547,7 +576,7 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         // % Processor Time is actually Idle time
         List<Long> idleList = valueMap.get(ProcessorTickCountProperty.PERCENTPROCESSORTIME);
 
-        long[][] ticks = new long[this.logicalProcessorCount][TickType.values().length];
+        long[][] ticks = new long[getLogicalProcessorCount()][TickType.values().length];
         if (instances.isEmpty() || systemList == null || userList == null || irqList == null || softIrqList == null
                 || idleList == null) {
             return ticks;
@@ -555,7 +584,7 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         for (int p = 0; p < instances.size(); p++) {
             int cpu = instances.get(p).contains(",") ? numaNodeProcToLogicalProcMap.getOrDefault(instances.get(p), 0)
                     : ParseUtil.parseIntOrDefault(instances.get(p), 0);
-            if (cpu >= this.logicalProcessorCount) {
+            if (cpu >= getLogicalProcessorCount()) {
                 continue;
             }
             ticks[cpu][TickType.SYSTEM.getIndex()] = systemList.get(cpu);
@@ -581,35 +610,14 @@ public class WindowsCentralProcessor extends AbstractCentralProcessor {
         return ticks;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public long getSystemUptime() {
-        // Uptime is in seconds so divide milliseconds
-        // GetTickCount64 requires Vista (6.0) or later
-        if (IS_VISTA_OR_GREATER) {
-            return Kernel32.INSTANCE.GetTickCount64() / 1000L;
-        } else {
-            // 32 bit rolls over at ~ 49 days
-            return Kernel32.INSTANCE.GetTickCount() / 1000L;
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getContextSwitches() {
+    public long queryContextSwitches() {
         Map<ContextSwitchProperty, Long> valueMap = this.contextSwitchPerfCounters.queryValues();
         return valueMap.getOrDefault(ContextSwitchProperty.CONTEXTSWITCHESPERSEC, 0L);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public long getInterrupts() {
+    public long queryInterrupts() {
         Map<InterruptsProperty, Long> valueMap = this.interruptsPerfCounters.queryValues();
         return valueMap.getOrDefault(InterruptsProperty.INTERRUPTSPERSEC, 0L);
     }

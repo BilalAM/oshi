@@ -41,8 +41,6 @@ import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
 
 /**
  * FreeBSD hard disk implementation.
- *
- * @author widdis[at]gmail[dot]com
  */
 public class FreeBsdDisks implements Disks {
 
@@ -55,6 +53,15 @@ public class FreeBsdDisks implements Disks {
     // Map of partitions to mount points
     private static final Map<String, String> mountMap = new HashMap<>();
 
+    /**
+     * <p>
+     * updateDiskStats.
+     * </p>
+     *
+     * @param diskStore
+     *            a {@link oshi.hardware.HWDiskStore} object.
+     * @return a boolean.
+     */
     public static boolean updateDiskStats(HWDiskStore diskStore) {
         List<String> output = ExecutingCommand.runNative("iostat -Ix " + diskStore.getName());
         long timeStamp = System.currentTimeMillis();
@@ -79,6 +86,7 @@ public class FreeBsdDisks implements Disks {
         return diskFound;
     }
 
+    /** {@inheritDoc} */
     @Override
     public HWDiskStore[] getDisks() {
         // Parse 'mount' to map partitions to mount point

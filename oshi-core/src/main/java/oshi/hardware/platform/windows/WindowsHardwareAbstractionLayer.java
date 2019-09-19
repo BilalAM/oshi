@@ -35,97 +35,68 @@ import oshi.hardware.SoundCard;
 import oshi.hardware.UsbDevice;
 import oshi.hardware.common.AbstractHardwareAbstractionLayer;
 
+/**
+ * <p>
+ * WindowsHardwareAbstractionLayer class.
+ * </p>
+ */
 public class WindowsHardwareAbstractionLayer extends AbstractHardwareAbstractionLayer {
 
-    private static final long serialVersionUID = 1L;
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public ComputerSystem getComputerSystem() {
-        if (this.computerSystem == null) {
-            this.computerSystem = new WindowsComputerSystem();
-        }
-        return this.computerSystem;
+    public ComputerSystem createComputerSystem() {
+        return new WindowsComputerSystem();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public GlobalMemory getMemory() {
-        if (this.memory == null) {
-            this.memory = new WindowsGlobalMemory();
-        }
-        return this.memory;
+    public GlobalMemory createMemory() {
+        return new WindowsGlobalMemory();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    public CentralProcessor getProcessor() {
-        if (this.processor == null) {
-            this.processor = new WindowsCentralProcessor();
-        }
-        return this.processor;
+    public CentralProcessor createProcessor() {
+        return new WindowsCentralProcessor();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
+    @Override
+    public Sensors createSensors() {
+        return new WindowsSensors();
+    }
+
+    /** {@inheritDoc} */
     @Override
     public PowerSource[] getPowerSources() {
         return WindowsPowerSource.getPowerSources();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public HWDiskStore[] getDiskStores() {
         return new WindowsDisks().getDisks();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public Display[] getDisplays() {
         return WindowsDisplay.getDisplays();
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Sensors getSensors() {
-        if (this.sensors == null) {
-            this.sensors = new WindowsSensors();
-        }
-        return this.sensors;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NetworkIF[] getNetworkIFs() {
         return new WindowsNetworks().getNetworks();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public UsbDevice[] getUsbDevices(boolean tree) {
         return WindowsUsbDevice.getUsbDevices(tree);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public SoundCard[] getSoundCards() {
         return WindowsSoundCard.getSoundCards().toArray(new SoundCard[0]);

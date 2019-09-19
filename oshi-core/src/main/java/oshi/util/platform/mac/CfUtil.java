@@ -23,10 +23,9 @@
  */
 package oshi.util.platform.mac;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collection;
 
-import com.sun.jna.Memory;
+import com.sun.jna.Memory; // NOSONAR squid:S1191
 import com.sun.jna.Pointer;
 import com.sun.jna.PointerType;
 import com.sun.jna.ptr.IntByReference;
@@ -34,46 +33,23 @@ import com.sun.jna.ptr.LongByReference;
 
 import oshi.jna.platform.mac.CoreFoundation;
 import oshi.jna.platform.mac.CoreFoundation.CFAllocatorRef;
-import oshi.jna.platform.mac.CoreFoundation.CFStringRef;
 
 /**
  * Provides utilities for Core Foundations
- *
- * @author widdis[at]gmail[dot]com
  */
 public class CfUtil {
+    /** Constant <code>ALLOCATOR</code> */
     public static final CFAllocatorRef ALLOCATOR = CoreFoundation.INSTANCE.CFAllocatorGetDefault();
-
-    /**
-     * Cache cfStrings
-     */
-    private static Map<String, CFStringRef> cfStringMap = new ConcurrentHashMap<>();
-
-    /**
-     * Return a CFStringRef representing a string, caching the result
-     *
-     * @param key
-     *            The string, usually a registry key
-     * @return the corresponding CFString
-     */
-    public static CFStringRef getCFString(String key) {
-        synchronized (cfStringMap) {
-            CFStringRef value = cfStringMap.get(key);
-            if (value != null) {
-                return value;
-            }
-            value = CFStringRef.toCFString(key);
-            cfStringMap.put(key, value);
-            return value;
-        }
-    }
 
     /**
      * Enum values used for number type in CFNumberGetValue(). Use ordinal() to
      * fetch the corresponding constant.
      */
     public enum CFNumberType {
-        unusedZero, kCFNumberSInt8Type, kCFNumberSInt16Type, kCFNumberSInt32Type, kCFNumberSInt64Type, kCFNumberFloat32Type, kCFNumberFloat64Type, kCFNumberCharType, kCFNumberShortType, kCFNumberIntType, kCFNumberLongType, kCFNumberLongLongType, kCFNumberFloatType, kCFNumberDoubleType, kCFNumberCFIndexType, kCFNumberNSIntegerType, kCFNumberCGFloatType, kCFNumberMaxType
+        unusedZero, kCFNumberSInt8Type, kCFNumberSInt16Type, kCFNumberSInt32Type, kCFNumberSInt64Type,
+        kCFNumberFloat32Type, kCFNumberFloat64Type, kCFNumberCharType, kCFNumberShortType, kCFNumberIntType,
+        kCFNumberLongType, kCFNumberLongLongType, kCFNumberFloatType, kCFNumberDoubleType, kCFNumberCFIndexType,
+        kCFNumberNSIntegerType, kCFNumberCGFloatType, kCFNumberMaxType
     }
 
     /**
@@ -103,8 +79,7 @@ public class CfUtil {
     }
 
     /**
-     * Convert a pointer representing a Core Foundations Boolean into its
-     * boolean
+     * Convert a pointer representing a Core Foundations Boolean into its boolean
      *
      * @param p
      *            The pointer to a boolean
@@ -136,8 +111,8 @@ public class CfUtil {
     }
 
     /**
-     * Releases a CF reference. Mandatory when an object is owned (using
-     * 'create' or 'copy' methods).
+     * Releases a CF reference. Mandatory when an object is owned (using 'create' or
+     * 'copy' methods).
      *
      * @param ref
      *            The reference to release
@@ -148,4 +123,19 @@ public class CfUtil {
         }
     }
 
+    /**
+     * Releases a collection of CF references. Mandatory when an object is owned
+     * (using 'create' or 'copy' methods).
+     * 
+     * @param <T>
+     *            The CF reference types in OSHI extend
+     *            {@link com.sun.jna.PointerType}.
+     * @param refs
+     *            The collection of references to release
+     */
+    public static <T extends PointerType> void releaseAll(Collection<T> refs) {
+        for (PointerType ref : refs) {
+            release(ref);
+        }
+    }
 }

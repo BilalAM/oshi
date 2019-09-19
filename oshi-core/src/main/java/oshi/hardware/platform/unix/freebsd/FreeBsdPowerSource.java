@@ -32,8 +32,6 @@ import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
 
 /**
  * A Power Source
- *
- * @author widdis[at]gmail[dot]com
  */
 public class FreeBsdPowerSource extends AbstractPowerSource {
 
@@ -41,6 +39,18 @@ public class FreeBsdPowerSource extends AbstractPowerSource {
 
     private static final Logger LOG = LoggerFactory.getLogger(FreeBsdPowerSource.class);
 
+    /**
+     * <p>
+     * Constructor for FreeBsdPowerSource.
+     * </p>
+     *
+     * @param newName
+     *            a {@link java.lang.String} object.
+     * @param newRemainingCapacity
+     *            a double.
+     * @param newTimeRemaining
+     *            a double.
+     */
     public FreeBsdPowerSource(String newName, double newRemainingCapacity, double newTimeRemaining) {
         super(newName, newRemainingCapacity, newTimeRemaining);
         LOG.debug("Initialized FreeBsdPowerSource");
@@ -53,18 +63,29 @@ public class FreeBsdPowerSource extends AbstractPowerSource {
      */
     public static PowerSource[] getPowerSources() {
         FreeBsdPowerSource[] ps = new FreeBsdPowerSource[1];
+        ps[0] = getPowerSource("BAT0");
+        return ps;
+    }
+
+    private static FreeBsdPowerSource getPowerSource(String name) {
         // state 0=full, 1=discharging, 2=charging
         int state = BsdSysctlUtil.sysctl("hw.acpi.battery.state", 0);
         // time is in minutes
         int time = BsdSysctlUtil.sysctl("hw.acpi.battery.time", -1);
         // life is in percent
         int life = BsdSysctlUtil.sysctl("hw.acpi.battery.life", 100);
-        String name = "BAT0";
         double timeRemaining = -2d;
         if (state < 2) {
             timeRemaining = time < 0 ? -1d : 60d * time;
         }
-        ps[0] = new FreeBsdPowerSource(name, life / 100d, timeRemaining);
-        return ps;
+        return new FreeBsdPowerSource(name, life / 100d, timeRemaining);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void updateAttributes() {
+        PowerSource ps = getPowerSource(this.name);
+        this.remainingCapacity = ps.getRemainingCapacity();
+        this.timeRemaining = ps.getTimeRemaining();
     }
 }

@@ -30,7 +30,7 @@
 	<parent>
 		<groupId>com.github.oshi</groupId>
 		<artifactId>oshi-parent</artifactId>
-		<version>4.0.0-SNAPSHOT</version>
+		<version>4.1.0-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>oshi-core</artifactId>
@@ -46,7 +46,7 @@
 	</scm>
 
 	<properties>
-		<jna.version>5.2.0</jna.version>
+		<jna.version>5.4.0</jna.version>
 		<main.basedir>${project.parent.basedir}</main.basedir>
 	</properties>
 

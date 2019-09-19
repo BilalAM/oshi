@@ -23,25 +23,64 @@
  */
 package oshi.util.platform.linux;
 
+import static oshi.util.Memoizer.memoize;
+
 import java.io.File;
-import java.io.FileFilter;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import oshi.hardware.CentralProcessor.TickType;
 import oshi.util.FileUtil;
+import oshi.util.GlobalConfig;
 import oshi.util.ParseUtil;
-
 /**
  * Provides access to some /proc filesystem info on Linux
- *
- * @author widdis[at]gmail[dot]com
  */
 public class ProcUtil {
-    private static final Pattern DIGITS = Pattern.compile("\\d+"); // NOSONAR-squid:S1068
+    
+    /**
+     * The proc path for CPU information
+     */
+    public static final String CPUINFO = "/cpuinfo";
+    
+    /**
+     * The proc path for CPU statistics
+     */
+    public static final String STAT = "/stat";
+
+    private static final Pattern DIGITS = Pattern.compile("\\d+");
+
+    /**
+     * The /proc filesystem location. Update hourly.
+     */
+    private static Supplier<String> proc = memoize(ProcUtil::queryProcConfig, TimeUnit.HOURS.toNanos(1));
 
     private ProcUtil() {
     }
+
+    /**
+     * The proc filesystem location may be customized to allow alternative proc
+     * plugins, particularly useful for containers.
+     *
+     * @return The proc filesystem path, with a leading / but not a trailing
+     *         one, e.g., "/proc"
+     */
+    public static String getProcPath() {
+        return proc.get();
+    }
+
+    private static String queryProcConfig() {
+        String procPath = GlobalConfig.get("oshi.util.proc.path", "/proc");
+        // Ensure prefix begins with path separator, but doesn't end with one
+        procPath = '/' + procPath.replaceAll("/$|^/", "");
+        if (!new File(procPath).exists()) {
+            throw new GlobalConfig.PropertyException("oshi.util.proc.path", "The path does not exist");
+        }
+        return procPath;
+    }
+
 
     /**
      * Parses the first value in /proc/uptime for seconds since boot
@@ -49,7 +88,7 @@ public class ProcUtil {
      * @return Seconds since boot
      */
     public static double getSystemUptimeSeconds() {
-        String uptime = FileUtil.getStringFromFile("/proc/uptime");
+        String uptime = FileUtil.getStringFromFile(getProcPath() + "/uptime");
         int spaceIndex = uptime.indexOf(' ');
         try {
             if (spaceIndex < 0) {
@@ -74,7 +113,7 @@ public class ProcUtil {
         // first line is overall user,nice,system,idle,iowait,irq, etc.
         // cpu 3357 0 4313 1362393 ...
         String tickStr;
-        List<String> procStat = FileUtil.readFile("/proc/stat");
+        List<String> procStat = FileUtil.readFile(getProcPath() + STAT);
         if (!procStat.isEmpty()) {
             tickStr = procStat.get(0);
         } else {
@@ -102,13 +141,8 @@ public class ProcUtil {
      * @return An array of File objects for the process files
      */
     public static File[] getPidFiles() {
-        File procdir = new File("/proc");
-        File[] pids = procdir.listFiles(new FileFilter() {
-            @Override
-            public boolean accept(File file) {
-                return DIGITS.matcher(file.getName()).matches();
-            }
-        });
+        File procdir = new File(getProcPath());
+        File[] pids = procdir.listFiles(f -> DIGITS.matcher(f.getName()).matches());
         return pids != null ? pids : new File[0];
     }
 }

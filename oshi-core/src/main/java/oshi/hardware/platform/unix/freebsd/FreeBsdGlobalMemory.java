@@ -23,6 +23,11 @@
  */
 package oshi.hardware.platform.unix.freebsd;
 
+import static oshi.util.Memoizer.defaultExpiration;
+import static oshi.util.Memoizer.memoize;
+
+import java.util.function.Supplier;
+
 import oshi.hardware.VirtualMemory;
 import oshi.hardware.common.AbstractGlobalMemory;
 import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
@@ -32,52 +37,50 @@ import oshi.util.platform.unix.freebsd.BsdSysctlUtil;
  */
 public class FreeBsdGlobalMemory extends AbstractGlobalMemory {
 
-    private static final long serialVersionUID = 1L;
+    private final Supplier<Long> available = memoize(this::queryVmStats, defaultExpiration());
 
-    /**
-     * {@inheritDoc}
-     */
+    private final Supplier<Long> total = memoize(this::queryPhysMem);
+
+    private final Supplier<Long> pageSize = memoize(this::queryPageSize);
+
+    private final Supplier<VirtualMemory> vm = memoize(this::createVirtualMemory);
+
     @Override
     public long getAvailable() {
-        if (this.memAvailable < 0) {
-            long inactive = BsdSysctlUtil.sysctl("vm.stats.vm.v_inactive_count", 0L);
-            long cache = BsdSysctlUtil.sysctl("vm.stats.vm.v_cache_count", 0L);
-            long free = BsdSysctlUtil.sysctl("vm.stats.vm.v_free_count", 0L);
-            this.memAvailable = (inactive + cache + free) * getPageSize();
-        }
-        return this.memAvailable;
+        return available.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getTotal() {
-        if (this.memTotal < 0) {
-            this.memTotal = BsdSysctlUtil.sysctl("hw.physmem", 0L);
-        }
-        return this.memTotal;
+        return total.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getPageSize() {
-        if (this.pageSize < 0) {
-            this.pageSize = BsdSysctlUtil.sysctl("hw.pagesize", 4096L);
-        }
-        return this.pageSize;
+        return pageSize.get();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public VirtualMemory getVirtualMemory() {
-        if (this.virtualMemory == null) {
-            this.virtualMemory = new FreeBsdVirtualMemory();
-        }
-        return this.virtualMemory;
+        return vm.get();
+    }
+
+    private long queryVmStats() {
+        long inactive = BsdSysctlUtil.sysctl("vm.stats.vm.v_inactive_count", 0L);
+        long cache = BsdSysctlUtil.sysctl("vm.stats.vm.v_cache_count", 0L);
+        long free = BsdSysctlUtil.sysctl("vm.stats.vm.v_free_count", 0L);
+        return (inactive + cache + free) * getPageSize();
+    }
+
+    private long queryPhysMem() {
+        return BsdSysctlUtil.sysctl("hw.physmem", 0L);
+    }
+
+    private long queryPageSize() {
+        return BsdSysctlUtil.sysctl("hw.pagesize", 4096L);
+    }
+
+    private VirtualMemory createVirtualMemory() {
+        return new FreeBsdVirtualMemory();
     }
 }

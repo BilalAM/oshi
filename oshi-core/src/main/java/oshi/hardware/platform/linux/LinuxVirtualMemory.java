@@ -23,73 +23,57 @@
  */
 package oshi.hardware.platform.linux;
 
+import static oshi.util.Memoizer.defaultExpiration;
+import static oshi.util.Memoizer.memoize;
+
 import java.util.List;
+import java.util.function.Supplier;
 
 import oshi.hardware.common.AbstractVirtualMemory;
 import oshi.util.FileUtil;
 import oshi.util.ParseUtil;
+import oshi.util.platform.linux.ProcUtil;
 
 /**
  * Memory obtained by /proc/meminfo and /proc/vmstat
  */
 public class LinuxVirtualMemory extends AbstractVirtualMemory {
 
-    private static final long serialVersionUID = 1L;
+    private final Supplier<MemInfo> memInfo = memoize(this::queryMemInfo, defaultExpiration());
 
-    /**
-     * {@inheritDoc}
-     */
+    private final Supplier<VmStat> vmStat = memoize(this::queryVmStat, defaultExpiration());
+
     @Override
     public long getSwapUsed() {
-        if (this.swapUsed < 0) {
-            updateMemInfo();
-        }
-        return this.swapUsed;
+        return memInfo.get().used;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapTotal() {
-        if (this.swapTotal < 0) {
-            updateMemInfo();
-        }
-        return this.swapTotal;
+        return memInfo.get().total;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapPagesIn() {
-        if (this.swapPagesIn < 0) {
-            updateVmStat();
-        }
-        return this.swapPagesIn;
+        return vmStat.get().pagesIn;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getSwapPagesOut() {
-        if (this.swapPagesOut < 0) {
-            updateVmStat();
-        }
-        return this.swapPagesOut;
+        return vmStat.get().pagesOut;
     }
 
-    private void updateMemInfo() {
-        long swapFree = 0;
+    private MemInfo queryMemInfo() {
+        long swapFree = 0L;
+        long swapTotal = 0L;
 
-        List<String> memInfo = FileUtil.readFile("/proc/meminfo");
-        for (String checkLine : memInfo) {
+        List<String> procMemInfo = FileUtil.readFile(ProcUtil.getProcPath() + "/meminfo");
+        for (String checkLine : procMemInfo) {
             String[] memorySplit = ParseUtil.whitespaces.split(checkLine);
             if (memorySplit.length > 1) {
                 switch (memorySplit[0]) {
                 case "SwapTotal:":
-                    this.swapTotal = parseMeminfo(memorySplit);
+                    swapTotal = parseMeminfo(memorySplit);
                     break;
                 case "SwapFree:":
                     swapFree = parseMeminfo(memorySplit);
@@ -100,20 +84,22 @@ public class LinuxVirtualMemory extends AbstractVirtualMemory {
                 }
             }
         }
-        this.swapUsed = this.swapTotal - swapFree;
+        return new MemInfo(swapTotal, swapTotal - swapFree);
     }
 
-    private void updateVmStat() {
-        List<String> vmStat = FileUtil.readFile("/proc/vmstat");
-        for (String checkLine : vmStat) {
+    private VmStat queryVmStat() {
+        long swapPagesIn = 0L;
+        long swapPagesOut = 0L;
+        List<String> procVmStat = FileUtil.readFile(ProcUtil.getProcPath() + "/vmstat");
+        for (String checkLine : procVmStat) {
             String[] memorySplit = ParseUtil.whitespaces.split(checkLine);
             if (memorySplit.length > 1) {
                 switch (memorySplit[0]) {
                 case "pgpgin":
-                    this.swapPagesIn = ParseUtil.parseLongOrDefault(memorySplit[1], 0L);
+                    swapPagesIn = ParseUtil.parseLongOrDefault(memorySplit[1], 0L);
                     break;
                 case "pgpgout":
-                    this.swapPagesOut = ParseUtil.parseLongOrDefault(memorySplit[1], 0L);
+                    swapPagesOut = ParseUtil.parseLongOrDefault(memorySplit[1], 0L);
                     break;
                 default:
                     // do nothing with other lines
@@ -121,6 +107,7 @@ public class LinuxVirtualMemory extends AbstractVirtualMemory {
                 }
             }
         }
+        return new VmStat(swapPagesIn, swapPagesOut);
     }
 
     /**
@@ -132,12 +119,32 @@ public class LinuxVirtualMemory extends AbstractVirtualMemory {
      */
     private long parseMeminfo(String[] memorySplit) {
         if (memorySplit.length < 2) {
-            return 0l;
+            return 0L;
         }
         long memory = ParseUtil.parseLongOrDefault(memorySplit[1], 0L);
         if (memorySplit.length > 2 && "kB".equals(memorySplit[2])) {
             memory *= 1024;
         }
         return memory;
+    }
+
+    private static final class MemInfo {
+        private final long total;
+        private final long used;
+
+        private MemInfo(long total, long used) {
+            this.total = total;
+            this.used = used;
+        }
+    }
+
+    private static final class VmStat {
+        private final long pagesIn;
+        private final long pagesOut;
+
+        private VmStat(long pagesIn, long pagesOut) {
+            this.pagesIn = pagesIn;
+            this.pagesOut = pagesOut;
+        }
     }
 }

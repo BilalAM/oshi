@@ -46,12 +46,10 @@ import oshi.util.FileUtil;
 import oshi.util.ParseUtil;
 
 /**
- * The Linux File System contains {@link OSFileStore}s which are a storage pool,
- * device, partition, volume, concrete file system or other implementation
- * specific means of file storage. In Linux, these are found in the /proc/mount
- * filesystem, excluding temporary and kernel mounts.
- *
- * @author widdis[at]gmail[dot]com
+ * The Linux File System contains {@link oshi.software.os.OSFileStore}s which
+ * are a storage pool, device, partition, volume, concrete file system or other
+ * implementation specific means of file storage. In Linux, these are found in
+ * the /proc/mount filesystem, excluding temporary and kernel mounts.
  */
 public class LinuxFileSystem implements FileSystem {
 
@@ -60,7 +58,7 @@ public class LinuxFileSystem implements FileSystem {
     private static final Logger LOG = LoggerFactory.getLogger(LinuxFileSystem.class);
 
     // Linux defines a set of virtual file systems
-    private final List<String> pseudofs = Arrays.asList(new String[] { //
+    private final List<String> pseudofs = Arrays.asList(//
             "rootfs", // Minimal fs to support kernel boot
             "sysfs", // SysFS file system
             "proc", // Proc file system
@@ -86,10 +84,11 @@ public class LinuxFileSystem implements FileSystem {
             // "tmpfs", // Temporary file system
             // NOTE: tmpfs is evaluated apart, because Linux uses it for
             // RAMdisks
-    });
+            "overlay" // Overlay file system https://wiki.archlinux.org/index.php/Overlay_filesystem
+    );
 
     // System path mounted as tmpfs
-    private final List<String> tmpfsPaths = Arrays.asList(new String[] { "/dev/shm", "/run", "/sys", "/proc" });
+    private final List<String> tmpfsPaths = Arrays.asList("/run", "/sys", "/proc");
 
     /**
      * Checks if file path equals or starts with an element in the given list
@@ -98,8 +97,8 @@ public class LinuxFileSystem implements FileSystem {
      *            A list of path prefixes
      * @param charSeq
      *            a path to check
-     * @return true if the charSeq exactly equals, or starts with the directory
-     *         in aList
+     * @return true if the charSeq exactly equals, or starts with the directory in
+     *         aList
      */
     private boolean listElementStartsWith(List<String> aList, String charSeq) {
         for (String match : aList) {
@@ -111,11 +110,9 @@ public class LinuxFileSystem implements FileSystem {
     }
 
     /**
-     * Gets File System Information.
+     * {@inheritDoc}
      *
-     * @return An array of {@link OSFileStore} objects representing mounted
-     *         volumes. May return disconnected volumes with
-     *         {@link OSFileStore#getTotalSpace()} = 0.
+     * Gets File System Information.
      */
     @Override
     public OSFileStore[] getFileStores() {
@@ -134,6 +131,12 @@ public class LinuxFileSystem implements FileSystem {
         }
 
         // List file systems
+        List<OSFileStore> fsList = getFileStoreMatching(null, uuidMap);
+
+        return fsList.toArray(new OSFileStore[0]);
+    }
+
+    private List<OSFileStore> getFileStoreMatching(String nameToMatch, Map<String, String> uuidMap) {
         List<OSFileStore> fsList = new ArrayList<>();
 
         // Parse /proc/self/mounts to get fs types
@@ -154,7 +157,11 @@ public class LinuxFileSystem implements FileSystem {
             // Exclude pseudo file systems
             String path = split[1].replaceAll("\\\\040", " ");
             String type = split[2];
-            if (this.pseudofs.contains(type) || path.equals("/dev") || listElementStartsWith(this.tmpfsPaths, path)) {
+            if (this.pseudofs.contains(type) // exclude non-fs types
+                    || path.equals("/dev") // exclude plain dev directory
+                    || listElementStartsWith(this.tmpfsPaths, path) // well known prefixes
+                    || path.endsWith("/shm") // exclude shared memory
+            ) {
                 continue;
             }
 
@@ -162,8 +169,14 @@ public class LinuxFileSystem implements FileSystem {
             if (path.equals("/")) {
                 name = "/";
             }
+
+            // If only updating for one name, skip others
+            if (nameToMatch != null && !nameToMatch.equals(name)) {
+                continue;
+            }
+
             String volume = split[0].replaceAll("\\\\040", " ");
-            String uuid = uuidMap.getOrDefault(split[0], "");
+            String uuid = uuidMap != null ? uuidMap.getOrDefault(split[0], "") : "";
 
             String description;
             if (volume.startsWith("/dev")) {
@@ -181,11 +194,11 @@ public class LinuxFileSystem implements FileSystem {
             String logicalVolume = "";
             String volumeMapperDirectory = "/dev/mapper/";
             Path link = Paths.get(volume);
-            if (Files.exists(link) && Files.isSymbolicLink(link)) {
+            if (link.toFile().exists() && Files.isSymbolicLink(link)) {
                 try {
                     Path slink = Files.readSymbolicLink(link);
                     Path full = Paths.get(volumeMapperDirectory + slink.toString());
-                    if (Files.exists(full)) {
+                    if (full.toFile().exists()) {
                         logicalVolume = full.normalize().toString();
                     }
                 } catch (IOException e) {
@@ -197,6 +210,7 @@ public class LinuxFileSystem implements FileSystem {
             long freeInodes = 0L;
             long totalSpace = 0L;
             long usableSpace = 0L;
+            long freeSpace = 0L;
 
             try {
                 LibC.Statvfs vfsStat = new LibC.Statvfs();
@@ -204,12 +218,15 @@ public class LinuxFileSystem implements FileSystem {
                     totalInodes = vfsStat.f_files.longValue();
                     freeInodes = vfsStat.f_ffree.longValue();
                     totalSpace = vfsStat.f_blocks.longValue() * vfsStat.f_bsize.longValue();
-                    usableSpace = vfsStat.f_bfree.longValue() * vfsStat.f_bsize.longValue();
+                    usableSpace = vfsStat.f_bavail.longValue() * vfsStat.f_bsize.longValue();
+                    freeSpace = vfsStat.f_bfree.longValue() * vfsStat.f_bsize.longValue();
                 } else {
                     File tmpFile = new File(path);
                     totalSpace = tmpFile.getTotalSpace();
                     usableSpace = tmpFile.getUsableSpace();
-                    LOG.error("Failed to get statvfs. Error code: {}", Native.getLastError());
+                    freeSpace = tmpFile.getFreeSpace();
+                    LOG.warn("Failed to get information to use statvfs. path: {}, Error code: {}", path,
+                            Native.getLastError());
                 }
             } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
                 LOG.error("Failed to get file counts from statvfs. {}", e);
@@ -222,6 +239,7 @@ public class LinuxFileSystem implements FileSystem {
             osStore.setDescription(description);
             osStore.setType(type);
             osStore.setUUID(uuid);
+            osStore.setFreeSpace(freeSpace);
             osStore.setUsableSpace(usableSpace);
             osStore.setTotalSpace(totalSpace);
             osStore.setFreeInodes(freeInodes);
@@ -230,15 +248,16 @@ public class LinuxFileSystem implements FileSystem {
 
             fsList.add(osStore);
         }
-
-        return fsList.toArray(new OSFileStore[0]);
+        return fsList;
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getOpenFileDescriptors() {
         return getFileDescriptors(0);
     }
 
+    /** {@inheritDoc} */
     @Override
     public long getMaxFileDescriptors() {
         return getFileDescriptors(2);
@@ -248,11 +267,11 @@ public class LinuxFileSystem implements FileSystem {
      * Returns a value from the Linux system file /proc/sys/fs/file-nr.
      *
      * @param index
-     *            The index of the value to retrieve. 0 returns the total
-     *            allocated file descriptors. 1 returns the number of used file
-     *            descriptors for kernel 2.4, or the number of unused file
-     *            descriptors for kernel 2.6. 2 returns the maximum number of
-     *            file descriptors that can be allocated.
+     *            The index of the value to retrieve. 0 returns the total allocated
+     *            file descriptors. 1 returns the number of used file descriptors
+     *            for kernel 2.4, or the number of unused file descriptors for
+     *            kernel 2.6. 2 returns the maximum number of file descriptors that
+     *            can be allocated.
      * @return Corresponding file descriptor value from the Linux system file.
      */
     private long getFileDescriptors(int index) {
@@ -266,5 +285,32 @@ public class LinuxFileSystem implements FileSystem {
             return ParseUtil.parseLongOrDefault(splittedLine[index], 0L);
         }
         return 0L;
+    }
+
+    /**
+     * <p>
+     * updateFileStoreStats.
+     * </p>
+     *
+     * @param osFileStore
+     *            a {@link oshi.software.os.OSFileStore} object.
+     * @return a boolean.
+     */
+    public static boolean updateFileStoreStats(OSFileStore osFileStore) {
+        for (OSFileStore fileStore : new LinuxFileSystem().getFileStoreMatching(osFileStore.getName(), null)) {
+            if (osFileStore.getVolume().equals(fileStore.getVolume())
+                    && osFileStore.getMount().equals(fileStore.getMount())) {
+                osFileStore.setLogicalVolume(fileStore.getLogicalVolume());
+                osFileStore.setDescription(fileStore.getDescription());
+                osFileStore.setType(fileStore.getType());
+                osFileStore.setFreeSpace(fileStore.getFreeSpace());
+                osFileStore.setUsableSpace(fileStore.getUsableSpace());
+                osFileStore.setTotalSpace(fileStore.getTotalSpace());
+                osFileStore.setFreeInodes(fileStore.getFreeInodes());
+                osFileStore.setTotalInodes(fileStore.getTotalInodes());
+                return true;
+            }
+        }
+        return false;
     }
 }
